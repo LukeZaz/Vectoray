@@ -1,4 +1,4 @@
-# Sculpter
+# Sculptition
 3D modeling software prototype designed with an intuitive interface in mind.
 
 Inspired by Blender and Hammer (for the Source Engine) *Sculpter* aims to create a 3D modeling program 
