@@ -1,0 +1,11 @@
+﻿#version 400\n
+
+in vec3 vertexPos3D;
+in vec3 vertexColor;
+
+out vec3 color;
+
+void main() {
+	color = vertexColor;
+    gl_Position = vec4(vertexPos3D, 1.0);
+}
