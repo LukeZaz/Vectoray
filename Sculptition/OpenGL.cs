@@ -255,7 +255,7 @@ namespace OpenGL
 		/// Acquire and set all OpenGL functions.
 		/// Must be run before any other functions in ths class can be used.
 		/// </summary>
-		/// <returns></returns>
+		/// <returns>Boolean value representing execution success.</returns>
 		public static bool LoadGLFunctions()
 		{
 			bool success = true;
@@ -297,6 +297,15 @@ namespace OpenGL
 
 			glDrawArrays = GetGLFunc<_glDrawArrays>();
 			glEnable = GetGLFunc<_glEnable>();
+
+			GLenum glError = glGetError();
+			if (glError != GLenum.GL_NO_ERROR)
+			{
+				Console.ForegroundColor = ConsoleColor.Red;
+				Console.WriteLine("Failed to load OpenGL functions! OpenGL error: " + glError.ToString());
+				Console.ResetColor();
+				success = false;
+			}
 
 			return success;
 		}
