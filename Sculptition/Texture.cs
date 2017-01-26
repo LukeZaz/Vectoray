@@ -1,4 +1,22 @@
-﻿using System;
+﻿/*
+Sculptition; 3D modeling program with an intuitive interface in mind.
+Copyright (C) 2017 LukeZaz
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+using System;
 using System.Runtime.InteropServices;
 using static SDL2.SDL;
 using static SDL2.SDL_image;
@@ -13,6 +31,8 @@ namespace Sculptition
 
 		public int width { get; private set; }
 		public int height { get; private set; }
+
+		#region Constructors & destructors
 
 		public Texture()
 		{
@@ -42,6 +62,8 @@ namespace Sculptition
 		{
 			Free();
 		}
+
+		#endregion
 
 		/// <summary>
 		/// Loads and converts an image from a file to be used for this texture.
