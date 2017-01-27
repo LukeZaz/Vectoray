@@ -83,12 +83,12 @@ namespace OpenGL
 			GL_NO_ERROR =                           0,
 			GL_DEPTH_BUFFER_BIT =          0x00000100,
 			GL_COLOR_BUFFER_BIT =          0x00004000,
-			GL_POINTS =                        0x0000,
 			GL_LINES =                         0x0001,
 			GL_LINE_LOOP =                     0x0002,
 			GL_LINE_STRIP =                    0x0003,
 			GL_TRIANGLES =                     0x0004,
 			GL_TRIANGLE_FAN =                  0x0006,
+			GL_LESS =                          0x0201,
 			GL_INVALID_ENUM =                  0x0500,
 			GL_INVALID_VALUE =                 0x0501,
 			GL_INVALID_OPERATION =             0x0502,
@@ -297,6 +297,10 @@ namespace OpenGL
 
 			glDrawArrays = GetGLFunc<_glDrawArrays>();
 			glEnable = GetGLFunc<_glEnable>();
+			glGetUniformLocation = GetGLFunc<_glGetUniformLocation>();
+			glUniformMatrix4fv = GetGLFunc<_glUniformMatrix4fv>();
+
+			glDepthFunc = GetGLFunc<_glDepthFunc>();
 
 			GLenum glError = glGetError();
 			if (glError != GLenum.GL_NO_ERROR)
@@ -444,6 +448,19 @@ namespace OpenGL
 		[UnmanagedFunctionPointer(CallingConvention.StdCall)]
 		public delegate void _glEnable(GLenum cap);
 		public static _glEnable glEnable;
+
+		[UnmanagedFunctionPointer(CallingConvention.StdCall)]
+		public delegate GLint _glGetUniformLocation(GLuint program,
+			[MarshalAs(UnmanagedType.LPStr)] StringBuilder name);
+		public static _glGetUniformLocation glGetUniformLocation;
+
+		[UnmanagedFunctionPointer(CallingConvention.StdCall)]
+		public unsafe delegate void _glUniformMatrix4fv(GLint location, uint count, GLboolean transpose, float* value);
+		public static _glUniformMatrix4fv glUniformMatrix4fv;
+
+		[UnmanagedFunctionPointer(CallingConvention.StdCall)]
+		public delegate void _glDepthFunc(GLenum func);
+		public static _glDepthFunc glDepthFunc;
 
 		[DllImport("OpenGL32.dll", CallingConvention = CallingConvention.StdCall)]
 		public static extern IntPtr wglGetCurrentContext();

@@ -22,6 +22,7 @@ using System;
 using System.IO;
 using System.Text;
 using System.Reflection;
+using System.Numerics;
 using System.Runtime.InteropServices;
 
 using static OpenGL.OpenGL;
@@ -60,6 +61,11 @@ namespace Sculptition
 		static GLuint[] colVBO = new GLuint[1];
 		static GLuint[] VAO = new GLuint[1];
 
+		// Matrices
+		static Matrix4x4 projection;
+		static Matrix4x4 view;
+		static Matrix4x4 MVP;
+
 		// SDL2
 		static Window glWindow = new Window();
 
@@ -78,7 +84,7 @@ namespace Sculptition
 			{
 				bool quit = false;
 				SDL_Event e;
-					
+				
 				SDL_RaiseWindow(glWindow.window);
 
 				// While running
@@ -134,9 +140,20 @@ namespace Sculptition
 
 			glUseProgram(glProgramID);
 
+			// Send most valuable matrix to GLSL code
+			GLuint matrixID = glGetUniformLocation(glProgramID, new StringBuilder("MVP"));
+
+			unsafe
+			{
+				fixed (float* matrixPtr = &MVP.M11)
+				{
+					glUniformMatrix4fv(matrixID, 1, GL_FALSE, matrixPtr);
+				}
+			}
+
 			glBindVertexArray(VAO[0]);
 
-			glDrawArrays(GL_TRIANGLES, 0, 6);
+			glDrawArrays(GL_TRIANGLES, 0, 3 * 8);
 
 			// Unbind program
 			glUseProgram(0);
@@ -229,6 +246,7 @@ namespace Sculptition
 			glProgramID = glCreateProgram();
 			glEnable(GL_DEPTH_TEST);
 			glEnable(GL_MULTISAMPLE);
+			glDepthFunc(GL_LESS);
 
 			// Vertex shader
 			GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
@@ -309,12 +327,37 @@ namespace Sculptition
 
 							GLfloat[] vertexData =
 							{
-								-0.5f,  0.6f,  0.0f,
-								 0.5f,  0.4f,  0.0f,
-								 0.5f, -0.6f,  0.0f,
-								-0.5f, -0.4f,  0.0f,
-								-0.5f,  0.6f,  0.0f,
-								 0.5f, -0.6f,  0.0f
+								 1f,  1f,  1f, // Front face     |\
+								 1f, -1f,  1f, //                | \
+								-1f,  1f,  1f, // Start point -> o__\
+
+								-1f, -1f,  1f, // Same start point repeats
+								-1f,  1f,  1f, // Front face 2nd tri
+								 1f, -1f,  1f,
+
+								-1f,  1f,  1f, // Left face
+								-1f, -1f,  1f,
+								-1f,  1f, -1f,
+
+								-1f, -1f, -1f,
+								-1f,  1f, -1f,
+								-1f, -1f,  1f,
+
+								-1f,  1f, -1f, // Back face
+								-1f, -1f, -1f,
+								 1f,  1f, -1f,
+
+								 1f, -1f, -1f,
+								 1f,  1f, -1f,
+								-1f, -1f, -1f,
+
+								 1f,  1f, -1f, // Right face
+								 1f, -1f, -1f,
+								 1f,  1f,  1f,
+
+								 1f, -1f,  1f,
+								 1f,  1f,  1f,
+								 1f, -1f, -1f
 							};
 
 							GLfloat[] colorData =
@@ -324,18 +367,36 @@ namespace Sculptition
 								1.0f, 0.0f, 0.0f, // Red
 								0.0f, 1.0f, 0.0f, // Green
 								1.0f, 0.0f, 0.0f, // Red
-								0.0f, 0.0f, 1.0f  // Blue
+								0.0f, 0.0f, 1.0f, // Blue
+								0.0f, 0.0f, 1.0f, // ... repeating ...
+								1.0f, 1.0f, 0.0f,
+								1.0f, 0.0f, 0.0f,
+								0.0f, 1.0f, 0.0f,
+								1.0f, 0.0f, 0.0f,
+								0.0f, 0.0f, 1.0f,
+								0.0f, 0.0f, 1.0f,
+								1.0f, 1.0f, 0.0f,
+								1.0f, 0.0f, 0.0f,
+								0.0f, 1.0f, 0.0f,
+								1.0f, 0.0f, 0.0f,
+								0.0f, 0.0f, 1.0f,
+								0.0f, 0.0f, 1.0f,
+								1.0f, 1.0f, 0.0f,
+								1.0f, 0.0f, 0.0f,
+								0.0f, 1.0f, 0.0f,
+								1.0f, 0.0f, 0.0f,
+								0.0f, 0.0f, 1.0f
 							};
 
 							// Create position VBO
 							glGenBuffers(1, posVBO);
 							glBindBuffer(GL_ARRAY_BUFFER, posVBO[0]);
-							glBufferDataf(GL_ARRAY_BUFFER, 3 * 6 * sizeof(float), vertexData, GL_STATIC_DRAW);
+							glBufferDataf(GL_ARRAY_BUFFER, 9 * 8 * sizeof(float), vertexData, GL_STATIC_DRAW);
 
 							// Create color VBO
 							glGenBuffers(1, colVBO);
 							glBindBuffer(GL_ARRAY_BUFFER, colVBO[0]);
-							glBufferDataf(GL_ARRAY_BUFFER, 3 * 6 * sizeof(float), colorData, GL_STATIC_DRAW);
+							glBufferDataf(GL_ARRAY_BUFFER, 9 * 8 * sizeof(float), colorData, GL_STATIC_DRAW);
 
 							// Create VAO
 							glGenVertexArrays(1, VAO);
@@ -350,6 +411,13 @@ namespace Sculptition
 
 							glEnableVertexAttribArray(vertexPos3DLocation);
 							glEnableVertexAttribArray(vertexColorLocation);
+
+							// Create matrices
+							projection = Matrix4x4.CreatePerspectiveFieldOfView(Extensions.DegreesToRadians(75f), screenWidth / screenHeight, 0.1f, 100f);
+							view = Matrix4x4.CreateLookAt(new Vector3(0.8f, 4, 2), Vector3.Zero, new Vector3(0, 1, 0));
+							Matrix4x4 model = Matrix4x4.Identity;
+
+							MVP = model * view * projection; // C# multiplies differently from other things like GLM; mult order is inverted compared to them.
 
 							// Get OpenGL data
 							Extensions.ConsoleWriteColored("\n<------OpenGL Information------>", ConsoleColor.White);
@@ -582,6 +650,39 @@ namespace Sculptition
 			Console.ForegroundColor = foregroundColor;
 			Console.WriteLine(message, arg0, arg1, arg2, arg3);
 			Console.ResetColor();
+		}
+
+		/// <summary>
+		/// Convert degrees to radians.
+		/// </summary>
+		/// <param name="angle">Angle to convert.</param>
+		/// <returns>Angle converted to radians.</returns>
+		public static float DegreesToRadians(float angle)
+		{
+			return angle * ((float)Math.PI / 180);
+		}
+
+		/// <summary>
+		/// Convert degrees to radians.
+		/// </summary>
+		/// <param name="angle">Angle to convert.</param>
+		/// <returns>Angle converted to radians.</returns>
+		public static double DegreesToRadians(double angle)
+		{
+			return angle * (Math.PI / 180);
+		}
+
+		/// <summary>
+		/// Converts a given 4x4 matrix to a one-dimensional float array.
+		/// </summary>
+		/// <param name="matrix">The matrix to convert.</param>
+		/// <returns>A float array containing the matrix values. Ordered left-right -> top-down.</returns>
+		public static float[] MatrixToFloatArray4x4(this Matrix4x4 matrix)
+		{
+			return new float[] { matrix.M11, matrix.M12, matrix.M13, matrix.M14,
+								matrix.M21, matrix.M22, matrix.M23, matrix.M24,
+								matrix.M31, matrix.M32, matrix.M33, matrix.M34,
+								matrix.M41, matrix.M42, matrix.M43, matrix.M44 };
 		}
 	}
 }
