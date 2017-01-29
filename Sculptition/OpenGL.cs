@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Text;
 using System.Runtime.InteropServices;
+using System.Numerics;
 using static SDL2.SDL;
 
 namespace OpenGL
@@ -466,5 +467,115 @@ namespace OpenGL
 		public static extern IntPtr wglGetCurrentContext();
 
 		#endregion
+	}
+
+	namespace CSharpWrapper
+	{
+		public class Triangle
+		{
+			// Points are assumed to be relative to position by default
+			public Vector3 A;
+			public Vector3 B;
+			public Vector3 C;
+
+			public Vector3 position;
+
+			/// <summary>
+			/// True if points are set in space relative to this triangles position vector, false if not.
+			/// </summary>
+			public bool pointsAreRelative { get; private set; }
+
+			public Triangle()
+			{
+				A = new Vector3();
+				B = new Vector3();
+				C = new Vector3();
+
+				position = new Vector3();
+
+				pointsAreRelative = true;
+			}
+
+			/// <summary>
+			/// Create a new triangle from the given points. Point positions will not be relative to an overall position.
+			/// </summary>
+			/// <param name="firstPoint">The first point.</param>
+			/// <param name="secondPoint">The second point.</param>
+			/// <param name="thirdPoint">The third point.</param>
+			public Triangle(Vector3 firstPoint, Vector3 secondPoint, Vector3 thirdPoint)
+			{
+				A = firstPoint;
+				B = secondPoint;
+				C = thirdPoint;
+
+				position = Vector3.Zero;
+
+				pointsAreRelative = false;
+			}
+
+			/// <summary>
+			/// Create a new triangle from the given points. Point positions will be relative to given _position vector.
+			/// </summary>
+			/// <param name="firstPoint">The first point.</param>
+			/// <param name="secondPoint">The second point.</param>
+			/// <param name="thirdPoint">The third point.</param>
+			/// <param name="_position">Overall position of this triangle which the points will be relative to.</param>
+			public Triangle(Vector3 firstPoint, Vector3 secondPoint, Vector3 thirdPoint, Vector3 _position)
+			{
+				A = firstPoint;
+				B = secondPoint;
+				C = thirdPoint;
+
+				position = _position;
+
+				pointsAreRelative = true;
+			}
+
+			/// <summary>
+			/// Convert this triangle to a float array.
+			/// </summary>
+			/// <param name="ignoreRelativity">If true, relativity to an overall position will be ignored and points will be returned unaltered.</param>
+			/// <returns>One-dimensional float array containing every XYZ value of all points.</returns>
+			public float[] ToFloatArray(bool ignoreRelativity = false)
+			{
+				if (!pointsAreRelative || ignoreRelativity)
+				{
+					return new float[] { A.X, A.Y, A.Z,
+										 B.X, B.Y, B.Z,
+										 C.X, C.Y, C.Z, };
+				}
+				else
+				{
+					return new float[] { A.X + position.X, A.Y + position.Y, A.Z + position.Z,
+										 B.X + position.X, B.Y + position.Y, B.Z + position.Z,
+										 C.X + position.X, C.Y + position.Y, C.Z + position.Z, };
+				}
+			}
+		}
+
+		public static class Extensions
+		{
+			/// <summary>
+			/// Convert this triangle array to a float array.
+			/// </summary>
+			/// <param name="ignoreRelativity">If true, relativity to an overall position will be ignored and points will be returned unaltered.</param>
+			/// <returns>One-dimensional float array containing every XYZ value of all points of every triangle.</returns>
+			public static float[] ToFloatArray(this Triangle[] triArray, bool ignoreRelativity = false)
+			{
+				float[] triFloatArray = new float[triArray.Length * 9];
+
+				for (int i = 0; i < triArray.Length; i++)
+				{
+					float[] pointArray = triArray[i].ToFloatArray(ignoreRelativity);
+
+					for (int n = 0; n < 9; n++)
+					{
+						triFloatArray[n + (9 * i)] = pointArray[n];
+					}
+				}
+
+				return triFloatArray;
+			}
+		}
 	}
 }
