@@ -97,6 +97,7 @@ namespace OpenGL
 			GL_STACK_UNDERFLOW =               0x0504,
 			GL_OUT_OF_MEMORY =                 0x0505,
 			GL_INVALID_FRAMEBUFFER_OPERATION = 0x0506,
+			GL_CULL_FACE =                     0x0B44,
 			GL_UNSIGNED_INT =                  0x1405,
 			GL_FLOAT =                         0x1406,
 			GL_VENDOR =                        0x1F00,
@@ -245,7 +246,13 @@ namespace OpenGL
 
 		#endregion
 
-		// Used to assign functions with less typing
+		/// <summary>
+		/// Shorthand call for GetDelegateForFunctionPointer using SDL_GL_GetProcAddress.
+		/// </summary>
+		/// <typeparam name="T">Function type to get and return.</typeparam>
+		/// <param name="funcName">Name of the function for GetProcAddress, if different from the type name.
+		/// If not given, this will be set to the type name of T with underscores removed.</param>
+		/// <returns>Delegate for the function.</returns>
 		static T GetGLFunc<T>(string funcName = null) where T : class
 		{
 			if (string.IsNullOrEmpty(funcName)) funcName = typeof(T).Name.Replace("_", "");
@@ -302,6 +309,7 @@ namespace OpenGL
 			glUniformMatrix4fv = GetGLFunc<_glUniformMatrix4fv>();
 
 			glDepthFunc = GetGLFunc<_glDepthFunc>();
+			glCullFace = GetGLFunc<_glCullFace>();
 
 			GLenum glError = glGetError();
 			if (glError != GLenum.GL_NO_ERROR)
@@ -462,6 +470,10 @@ namespace OpenGL
 		[UnmanagedFunctionPointer(CallingConvention.StdCall)]
 		public delegate void _glDepthFunc(GLenum func);
 		public static _glDepthFunc glDepthFunc;
+
+		[UnmanagedFunctionPointer(CallingConvention.StdCall)]
+		public delegate void _glCullFace(GLenum mode);
+		public static _glCullFace glCullFace;
 
 		[DllImport("OpenGL32.dll", CallingConvention = CallingConvention.StdCall)]
 		public static extern IntPtr wglGetCurrentContext();
