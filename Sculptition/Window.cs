@@ -114,7 +114,7 @@ namespace Sculptition
 		}
 
 		/// <summary>
-		/// Handle a given SDL event.
+		/// Handle a given SDL_WINDOWEVENT event.
 		/// </summary>
 		/// <param name="e">The event to handle.</param>
 		public void HandleEvent(SDL_Event e)

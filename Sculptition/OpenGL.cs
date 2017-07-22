@@ -22,10 +22,12 @@ using System.Runtime.InteropServices;
 using System.Numerics;
 using static SDL2.SDL;
 
+using static Sculptition.Extensions;
+
 namespace OpenGL
 {
-	// Make-do GLEW bindings because I couldn't find any
-	// May not be needed. Once the program is further developed, should consider trashing this & GLEW
+	/* Make-do GLEW bindings because I couldn't find any
+	// Currently entirely unused. Kept until I am sure this won't be needed.
 	/// <summary>
 	/// C# bindings to GLEW functions. All function names will be identical wherever possible.
 	/// Functions provided DO NOT include those straight from OpenGL. Use the OpenGL class for functions from it.
@@ -69,7 +71,7 @@ namespace OpenGL
 
 		[DllImport(nativeLibName, CallingConvention = CallingConvention.StdCall, EntryPoint = "_glewIsSupported@4")]
 		public static extern bool glewIsSupported(string checks);
-	}
+	} */
 
 	/// <summary>
 	/// Functions obtained off OpenGL utilizing GetProcAddress.
@@ -314,9 +316,7 @@ namespace OpenGL
 			GLenum glError = glGetError();
 			if (glError != GLenum.GL_NO_ERROR)
 			{
-				Console.ForegroundColor = ConsoleColor.Red;
-				Console.WriteLine("Failed to load OpenGL functions! OpenGL error: " + glError.ToString());
-				Console.ResetColor();
+				ConsoleWriteError("Failed to load OpenGL functions! OpenGL error: " + glError.ToString());
 				success = false;
 			}
 
@@ -483,84 +483,190 @@ namespace OpenGL
 
 	namespace CSharpWrapper
 	{
-		public class Triangle
-		{
-			// Points are assumed to be relative to position by default
-			public Vector3 A;
-			public Vector3 B;
-			public Vector3 C;
+		/* Idea for experimental new layout, akin to that used by Unity
+		   'WorldObject' class, which is just a basis - essentially a position, and host for other classes.
+		   It can, from there, support other shapes. Like Unity, this will include a differentiation between
+		   World Space and Local Space, with WorldObject existing primarily to easily organize all local data (such as local position).
+		   This might not be a good idea, but the general premise sounds promising, and so I will be trying it. */
+		
+		// TODO: WorldObject-based objects need color handling.
 
+		/// <summary>
+		/// A two-value enum used to define the spacial context in which something is done.
+		/// Actions can be relative to the given object, or the entire world; this is used for determining that.
+		/// </summary>
+		public enum SpacialContext
+		{
+			World = 0,
+			Local = 1
+		}
+		
+		/// <summary>
+		/// A basic object class. Has nothing besides a position.
+		/// </summary>
+		public class WorldObject
+		{
 			public Vector3 position;
 
 			/// <summary>
-			/// True if points are set in space relative to this triangles position vector, false if not.
+			/// Create a new WorldObject. Position will default to Vector3.Zero.
 			/// </summary>
-			public bool pointsAreRelative { get; private set; }
+			public WorldObject()
+			{
+				position = Vector3.Zero;
+			}
 
-			public Triangle()
+			/// <summary>
+			/// Create a new WorldObject with the given position.
+			/// </summary>
+			/// <param name="_position">The position for the new WorldObject.</param>
+			public WorldObject(Vector3 _position)
+			{
+				if (_position == null)
+				{
+					// TODO: There might be a way to replace the 'WorldObject' text in this with the name of whatever class (derived or otherwise) it was that was actually created
+					ConsoleWriteWarning("WorldObject created with null position variable. Defaulting to Vector3.Zero.");
+					_position = Vector3.Zero;
+				}
+
+				position = _position;
+			}
+		}
+
+		/// <summary>
+		/// A camera object used to view the model and world around it. Only one should be active at any given time.
+		/// </summary>
+		public class Camera : WorldObject
+		{
+			public float horizontalAngle, verticalAngle, fieldOfView;
+
+			/// <summary>
+			/// Initializes a new camera with the default values of: Horizontal Angle 3.14, Vertical Angle 0, and Field of View (FoV, in degrees) 75.
+			/// </summary>
+			public Camera() : base()
+			{
+				horizontalAngle = 3.14f;
+				verticalAngle = 0;
+				fieldOfView = 75;
+			}
+
+			/// <summary>
+			/// Initializes a new camera with a default Horizontal Angle of 3.14, a default Vertical Angle of 0, and a provided Field of View.
+			/// </summary>
+			/// <param name="_fieldOfView">The field of view (FoV) for this camera, in degrees.</param>
+			public Camera(float _fieldOfView) : base()
+			{
+				horizontalAngle = 3.14f;
+				verticalAngle = 0;
+				fieldOfView = _fieldOfView;
+			}
+
+			/// <summary>
+			/// Initializes a new camera with a default Horizontal Angle of 3.14, a default Vertical Angle of 0, and a provided Field of View and position.
+			/// </summary>
+			/// <param name="_position">The starting position for this camera.</param>
+			/// <param name="_fieldOfView">The field of view (FoV) for this camera, in degrees. If not provided, defaults to 75.</param>
+			public Camera(Vector3 _position, float _fieldOfView = 75) : base(_position)
+			{
+				horizontalAngle = 3.14f;
+				verticalAngle = 0;
+				fieldOfView = _fieldOfView;
+			}
+
+			/// <summary>
+			/// Gets the direction of the camera in Cartesian coordinates.
+			/// </summary>
+			/// <returns>The direction of this camera in Cartesian coordinates.</returns>
+			public Vector3 GetForwardDirection()
+			{
+				return new Vector3((float)(Math.Cos(verticalAngle) * Math.Sin(horizontalAngle)),
+								   (float)Math.Sin(verticalAngle),
+								   (float)(Math.Cos(verticalAngle) * Math.Cos(horizontalAngle)));
+			}
+
+			/// <summary>
+			/// Gets the direction to the right of the camera.
+			/// </summary>
+			/// <returns>The direction to the right of the camera.</returns>
+			public Vector3 GetRightDirection()
+			{
+				return new Vector3((float)Math.Sin(horizontalAngle - Math.PI / 2),
+								   0,
+								   (float)Math.Cos(horizontalAngle - Math.PI / 2));
+			}
+
+			/// <summary>
+			/// Get this cameras upwards direction.
+			/// </summary>
+			/// <returns>The upwards direction for this camera.</returns>
+			public Vector3 GetUpDirection()
+			{
+				return Vector3.Cross(GetRightDirection(), GetForwardDirection());
+			}
+		}
+
+		/// <summary>
+		/// An object composed of a single triangle.
+		/// </summary>
+		public class Triangle : WorldObject
+		{
+			// Points are stored in a Local Space context
+			public Vector3 A, B, C;
+
+			public Triangle() : base()
 			{
 				A = new Vector3();
 				B = new Vector3();
 				C = new Vector3();
-
-				position = new Vector3();
-
-				pointsAreRelative = true;
 			}
 
+			// TODO: This function might not be necessary? Double check.
 			/// <summary>
-			/// Create a new triangle from the given points. Point positions will not be relative to an overall position.
+			/// Create a new triangle from the given points. Object position will default to Vector3.Zero.
 			/// </summary>
 			/// <param name="firstPoint">The first point.</param>
 			/// <param name="secondPoint">The second point.</param>
 			/// <param name="thirdPoint">The third point.</param>
-			public Triangle(Vector3 firstPoint, Vector3 secondPoint, Vector3 thirdPoint)
+			public Triangle(Vector3 firstPoint, Vector3 secondPoint, Vector3 thirdPoint) : base()
 			{
 				A = firstPoint;
 				B = secondPoint;
 				C = thirdPoint;
-
-				position = Vector3.Zero;
-
-				pointsAreRelative = false;
 			}
 
 			/// <summary>
-			/// Create a new triangle from the given points. Point positions will be relative to given _position vector.
+			/// Create a new triangle from the given points and position.
 			/// </summary>
 			/// <param name="firstPoint">The first point.</param>
 			/// <param name="secondPoint">The second point.</param>
 			/// <param name="thirdPoint">The third point.</param>
 			/// <param name="_position">Overall position of this triangle which the points will be relative to.</param>
-			public Triangle(Vector3 firstPoint, Vector3 secondPoint, Vector3 thirdPoint, Vector3 _position)
+			public Triangle(Vector3 firstPoint, Vector3 secondPoint, Vector3 thirdPoint, Vector3 _position) : base(_position)
 			{
 				A = firstPoint;
 				B = secondPoint;
 				C = thirdPoint;
-
-				position = _position;
-
-				pointsAreRelative = true;
 			}
 
 			/// <summary>
 			/// Convert this triangle to a float array.
 			/// </summary>
-			/// <param name="ignoreRelativity">If true, relativity to an overall position will be ignored and points will be returned unaltered.</param>
+			/// <param name="spacialContext">Determines the context of the positions. Local will provide the raw values (i.e. their positions relative to the position of this object),
+			/// whereas World will provide the positions relative to the Worlds 0, 0, 0.</param>
 			/// <returns>One-dimensional float array containing every XYZ value of all points.</returns>
-			public float[] ToFloatArray(bool ignoreRelativity = false)
+			public float[] ToFloatArray(SpacialContext spacialContext = SpacialContext.Local)
 			{
-				if (!pointsAreRelative || ignoreRelativity)
-				{
-					return new float[] { A.X, A.Y, A.Z,
-										 B.X, B.Y, B.Z,
-										 C.X, C.Y, C.Z, };
-				}
-				else
+				if (spacialContext == SpacialContext.World)
 				{
 					return new float[] { A.X + position.X, A.Y + position.Y, A.Z + position.Z,
 										 B.X + position.X, B.Y + position.Y, B.Z + position.Z,
 										 C.X + position.X, C.Y + position.Y, C.Z + position.Z, };
+				}
+				else
+				{
+					return new float[] { A.X, A.Y, A.Z,
+										 B.X, B.Y, B.Z,
+										 C.X, C.Y, C.Z, };
 				}
 			}
 		}
@@ -572,13 +678,13 @@ namespace OpenGL
 			/// </summary>
 			/// <param name="ignoreRelativity">If true, relativity to an overall position will be ignored and points will be returned unaltered.</param>
 			/// <returns>One-dimensional float array containing every XYZ value of all points of every triangle.</returns>
-			public static float[] ToFloatArray(this Triangle[] triArray, bool ignoreRelativity = false)
+			public static float[] ToFloatArray(this Triangle[] triArray, SpacialContext spacialContext = SpacialContext.Local)
 			{
 				float[] triFloatArray = new float[triArray.Length * 9];
 
 				for (int i = 0; i < triArray.Length; i++)
 				{
-					float[] pointArray = triArray[i].ToFloatArray(ignoreRelativity);
+					float[] pointArray = triArray[i].ToFloatArray(spacialContext);
 
 					for (int n = 0; n < 9; n++)
 					{

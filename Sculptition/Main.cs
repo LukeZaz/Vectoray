@@ -19,22 +19,26 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #region Using statements
 
 using System;
+using System.Linq;
 using System.IO;
 using System.Text;
 using System.Reflection;
+using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
+using OpenGL.CSharpWrapper;
 using static OpenGL.OpenGL;
 using static OpenGL.OpenGL.GLenum;
 using static OpenGL.OpenGL.GLboolean;
-using static OpenGL.GLEW;
 
 using static SDL2.SDL;
 using static SDL2.SDL_image; // Unused, outside of the deprecated LoadImage function, kept for future use
 using static SDL2.SDL_ttf; // Unused, kept for future use
 
 #endregion
+
+// TODO: Should probably take all the todos in this project and move them over to github issues.
 
 namespace Sculptition
 {
@@ -61,19 +65,47 @@ namespace Sculptition
 		static GLuint[] colVBO = new GLuint[1];
 		static GLuint[] VAO = new GLuint[1];
 
+		static int triangleCount = 0;
+
 		// Matrices
-		static Matrix4x4 projection;
+		static Matrix4x4 model;
 		static Matrix4x4 view;
+		static Matrix4x4 projection;
+		/// <summary>
+		/// A combined model-view-projection matrix, sent to OpenGL for rendering.
+		/// </summary>
 		static Matrix4x4 MVP;
 
 		// SDL2
 		static Window glWindow = new Window();
+
+		// Sculptition-specific
+		static Camera camera;
+
+		// TODO: Consider making this a double instead
+		static double deltaTime;
+
+		static float mouseSpeed = 0.0005f,
+			moveSpeed = 0.01f;
+
+		// Constants
+		/// <summary>
+		/// Amount of float values needed to make one triangle.
+		/// </summary>
+		const short triangleFloatSize = 9;
+		/// <summary>
+		/// Amount of Vector3 values needed to make one triangle.
+		/// </summary>
+		const short triangleVector3Size = 3;
 
 		#endregion
 
 		static void Main()
 		{
 			bool errorOccurred = false;
+
+			ulong now = SDL_GetPerformanceCounter(),
+				last = 0;
 
 			if (!Init())
 			{
@@ -82,37 +114,100 @@ namespace Sculptition
 			}
 			else
 			{
-				bool quit = false;
-				SDL_Event e;
+				bool quitProgram = false;
+				SDL_Event SDLEvent;
 				
 				SDL_RaiseWindow(glWindow.window);
 
 				// While running
-				while (!quit)
+				while (!quitProgram)
 				{
-					while (SDL_PollEvent(out e) != 0)
+					int mouseMovementX = 0, mouseMovementY = 0;
+					InputManager.UpdateStates();
+
+					// Handle all waiting events
+					while (SDL_PollEvent(out SDLEvent) != 0)
 					{
-						if (e.type == SDL_EventType.SDL_QUIT)
+						if (SDLEvent.type == SDL_EventType.SDL_QUIT)
 						{
-							quit = true;
+							SDL_SetRelativeMouseMode(SDL_bool.SDL_FALSE);
+							quitProgram = true;
+							continue;
 						}
-						else if (e.type == SDL_EventType.SDL_KEYDOWN)
+						else if (SDLEvent.type == SDL_EventType.SDL_KEYDOWN || SDLEvent.type == SDL_EventType.SDL_KEYUP
+							|| SDLEvent.type == SDL_EventType.SDL_MOUSEBUTTONDOWN || SDLEvent.type == SDL_EventType.SDL_MOUSEBUTTONUP)
 						{
-							switch (e.key.keysym.sym)
-							{
-								case SDL_Keycode.SDLK_ESCAPE:
-									quit = true;
-									break;
-							}
+							InputManager.HandleEvent(SDLEvent);
 						}
-
-						// Window events
-						glWindow.HandleEvent(e);
-
-						RenderQuad();
-
-						SDL_GL_SwapWindow(glWindow.window);
+						else if (SDLEvent.type == SDL_EventType.SDL_MOUSEMOTION)
+						{
+							// Catch relative mouse movement
+							mouseMovementX = SDLEvent.motion.xrel;
+							mouseMovementY = SDLEvent.motion.yrel;
+						}
 					}
+
+					// Quit the program if the escape button is pressed
+					if (InputManager.IsPressed(SDL_Keycode.SDLK_ESCAPE))
+					{
+						quitProgram = true;
+						continue;
+					}
+
+					// Window events
+					glWindow.HandleEvent(SDLEvent);
+
+					// Calculate delta time
+					last = now;
+					now = SDL_GetPerformanceCounter();
+					deltaTime = (((now - last) * 1000) / SDL_GetPerformanceFrequency());
+
+					// Lock the mouse and track movement only while the right mouse button is down
+					if (InputManager.PressedThisFrame(InputManager.MouseKeycode.SDL_BUTTON_RIGHT))
+					{
+						SDL_SetRelativeMouseMode(SDL_bool.SDL_TRUE);
+					}
+					else if (InputManager.ReleasedThisFrame(InputManager.MouseKeycode.SDL_BUTTON_RIGHT))
+					{
+						SDL_SetRelativeMouseMode(SDL_bool.SDL_FALSE);
+						// Warp mouse to the center of the screen, for consistency.
+						SDL_WarpMouseInWindow(IntPtr.Zero, screenWidth / 2, screenHeight / 2);
+					}
+
+					// Only move if the right mouse button is down
+					if (InputManager.IsPressed(InputManager.MouseKeycode.SDL_BUTTON_RIGHT))
+					{
+						// Adjust camera orientation according to mouse movement
+						camera.horizontalAngle -= mouseSpeed * (float)deltaTime * mouseMovementX;
+						camera.verticalAngle -= mouseSpeed * (float)deltaTime * mouseMovementY;
+
+						// Move camera position according to keypresses
+						if (InputManager.IsPressed(SDL_Keycode.SDLK_w) || InputManager.IsPressed(SDL_Keycode.SDLK_UP))
+						{
+							camera.position += camera.GetForwardDirection() * (float)deltaTime * moveSpeed;
+						}
+						if (InputManager.IsPressed(SDL_Keycode.SDLK_a) || InputManager.IsPressed(SDL_Keycode.SDLK_LEFT))
+						{
+							camera.position -= camera.GetRightDirection() * (float)deltaTime * moveSpeed;
+						}
+						if (InputManager.IsPressed(SDL_Keycode.SDLK_s) || InputManager.IsPressed(SDL_Keycode.SDLK_DOWN))
+						{
+							camera.position -= camera.GetForwardDirection() * (float)deltaTime * moveSpeed;
+						}
+						if (InputManager.IsPressed(SDL_Keycode.SDLK_d) || InputManager.IsPressed(SDL_Keycode.SDLK_RIGHT))
+						{
+							camera.position += camera.GetRightDirection() * (float)deltaTime * moveSpeed;
+						}
+
+						// Update matrices
+						projection = Matrix4x4.CreatePerspectiveFieldOfView(Extensions.DegreesToRadians(camera.fieldOfView), screenWidth / screenHeight, 0.1f, 100f);
+						view = Matrix4x4.CreateLookAt(camera.position, camera.position + camera.GetForwardDirection(), camera.GetUpDirection());
+						MVP = model * view * projection;
+					}
+
+					RenderQuad();
+
+					SDL_GL_SwapWindow(glWindow.window);
 				}
 			}
 
@@ -124,7 +219,7 @@ namespace Sculptition
 				errorOccurred = true;
 			}
 
-			if (errorOccurred) Console.ReadKey(); // Pause before quitting so console errors can be reviewed
+			if (errorOccurred) Console.ReadKey(); // Pause before quitting so the console can be reviewed
 			Quit();
 		}
 
@@ -153,7 +248,7 @@ namespace Sculptition
 
 			glBindVertexArray(VAO[0]);
 
-			glDrawArrays(GL_TRIANGLES, 0, 3 * 8);
+			glDrawArrays(GL_TRIANGLES, 0, (uint)(triangleVector3Size * triangleCount));
 
 			// Unbind program
 			glUseProgram(0);
@@ -205,7 +300,7 @@ namespace Sculptition
 					}
 					else
 					{
-						Console.WriteLine("GLEW support for OpenGL 4.0 availability: " + glewIsSupported("GL_VERSION_4_0  GL_ARB_point_sprite"));
+						//Console.WriteLine("GLEW support for OpenGL 4.0 availability: " + glewIsSupported("GL_VERSION_4_0  GL_ARB_point_sprite"));
 
 						// VSync
 						if (SDL_GL_SetSwapInterval(1) < 0)
@@ -213,6 +308,9 @@ namespace Sculptition
 							Extensions.ConsoleWriteWarning("Failed to set OpenGL VSync. SDL error: " + SDL_GetError());
 							success = false;
 						}
+
+						// Create camera
+						camera = new Camera(new Vector3(1, 1, 1));
 
 						if (!InitGL())
 						{
@@ -228,6 +326,7 @@ namespace Sculptition
 			return success;
 		}
 
+		// TODO: Move this to CSharpWrapper?
 		/// <summary>
 		/// Initializes OpenGL, then creates and links shaders, shader programs, VBOs and VAOs.
 		/// Writes OpenGL string information to console when finished.
@@ -244,8 +343,13 @@ namespace Sculptition
 			LoadGLFunctions();
 
 			glProgramID = glCreateProgram();
+			// Important: Test depth before drawing. If this is disabled, image will be extremely mangled.
 			glEnable(GL_DEPTH_TEST);
+			// Multisampling
 			glEnable(GL_MULTISAMPLE);
+			// Face culling. If enabled, one side of every triangle will be culled under the assumption that it won't be seen.
+			//glEnable(GL_CULL_FACE);
+			// Depth comparison function. Determines how GL_DEPTH_TEST will work.
 			glDepthFunc(GL_LESS);
 
 			// Vertex shader
@@ -324,79 +428,103 @@ namespace Sculptition
 						{
 							// Set up VBO and VAO
 							glClearColor(0.8f, 0.8f, 0.8f, 1);
-
-							GLfloat[] vertexData =
+							
+							Triangle[] triangleData =
 							{
-								 1f,  1f,  1f, // Front face     |\
-								 1f, -1f,  1f, //                | \
-								-1f,  1f,  1f, // Start point -> o__\
+								// X / Y / Z marker triangles
+								new Triangle(Vector3.Zero, new Vector3(2, 0, 0), new Vector3(0, 0, 2)),
+								new Triangle(Vector3.Zero, new Vector3(2, 0, 0), new Vector3(0, 2, 0)),
+								new Triangle(Vector3.Zero, new Vector3(0, 0, 2), new Vector3(0, 2, 0)),
 
-								-1f, -1f,  1f, // Same start point repeats
-								-1f,  1f,  1f, // Front face 2nd tri
-								 1f, -1f,  1f,
-
-								-1f,  1f,  1f, // Left face
-								-1f, -1f,  1f,
-								-1f,  1f, -1f,
-
-								-1f, -1f, -1f,
-								-1f,  1f, -1f,
-								-1f, -1f,  1f,
-
-								-1f,  1f, -1f, // Back face
-								-1f, -1f, -1f,
-								 1f,  1f, -1f,
-
-								 1f, -1f, -1f,
-								 1f,  1f, -1f,
-								-1f, -1f, -1f,
-
-								 1f,  1f, -1f, // Right face
-								 1f, -1f, -1f,
-								 1f,  1f,  1f,
-
-								 1f, -1f,  1f,
-								 1f,  1f,  1f,
-								 1f, -1f, -1f
+								// Cube is 2x2x2 units
+								// Bottom face
+								new Triangle(new Vector3(1, -1, 1), new Vector3(-1, -1, 1), new Vector3(1, -1, -1), new Vector3(4, 1, 4)),
+								new Triangle(new Vector3(-1, -1, -1), new Vector3(1, -1, -1), new Vector3(-1, -1, 1), new Vector3(4, 1, 4)),
+								// Front face
+								new Triangle(new Vector3(1, -1, 1), new Vector3(-1, -1, 1), new Vector3(1, 1, 1), new Vector3(4, 1, 4)),
+								new Triangle(new Vector3(-1, 1, 1), new Vector3(-1, -1, 1), new Vector3(1, 1, 1), new Vector3(4, 1, 4)),
+								// Left face
+								new Triangle(new Vector3(-1, -1, -1), new Vector3(-1, -1, 1), new Vector3(-1, 1, -1), new Vector3(4, 1, 4)),
+								new Triangle(new Vector3(-1, 1, -1), new Vector3(-1, 1, 1), new Vector3(-1, -1, 1), new Vector3(4, 1, 4)),
+								// Right face
+								new Triangle(new Vector3(1, -1, -1), new Vector3(1, -1, 1), new Vector3(1, 1, -1), new Vector3(4, 1, 4)),
+								new Triangle(new Vector3(1, 1, -1), new Vector3(1, 1, 1), new Vector3(1, -1, 1), new Vector3(4, 1, 4)),
+								// Back face
+								new Triangle(new Vector3(1, -1, -1), new Vector3(-1, -1, -1), new Vector3(1, 1, -1), new Vector3(4, 1, 4)),
+								new Triangle(new Vector3(-1, 1, -1), new Vector3(-1, -1, -1), new Vector3(1, 1, -1), new Vector3(4, 1, 4)),
+								// Top face
+								new Triangle(new Vector3(1, 1, 1), new Vector3(-1, 1, 1), new Vector3(1, 1, -1), new Vector3(4, 1, 4)),
+								new Triangle(new Vector3(-1, 1, -1), new Vector3(1, 1, -1), new Vector3(-1, 1, 1), new Vector3(4, 1, 4))
 							};
+							triangleCount = triangleData.Length;
+
+							GLfloat[] vertexData = Array.ConvertAll(triangleData.ToFloatArray(SpacialContext.World), item => (GLfloat)item);
 
 							GLfloat[] colorData =
 							{
-								0.0f, 0.0f, 1.0f, // Blue
-								1.0f, 1.0f, 0.0f, // Yellow
+								1.0f, 1.0f, 1.0f, // White (0, 0, 0)
+								1.0f, 0.0f, 0.0f, // Red (X)
+								0.0f, 0.0f, 1.0f, // Blue (Z)
+								1.0f, 1.0f, 1.0f, // White
 								1.0f, 0.0f, 0.0f, // Red
+								0.0f, 1.0f, 0.0f, // Green (Y)
+								1.0f, 1.0f, 1.0f, // White
+								0.0f, 0.0f, 1.0f, // Blue
 								0.0f, 1.0f, 0.0f, // Green
-								1.0f, 0.0f, 0.0f, // Red
-								0.0f, 0.0f, 1.0f, // Blue
-								0.0f, 0.0f, 1.0f, // ... repeating ...
-								1.0f, 1.0f, 0.0f,
-								1.0f, 0.0f, 0.0f,
+
+								// Bottom face
+								0.2f, 1.0f, 0.2f,
+								0.2f, 1.0f, 0.2f,
+								0.2f, 1.0f, 0.2f,
 								0.0f, 1.0f, 0.0f,
-								1.0f, 0.0f, 0.0f,
-								0.0f, 0.0f, 1.0f,
-								0.0f, 0.0f, 1.0f,
-								1.0f, 1.0f, 0.0f,
-								1.0f, 0.0f, 0.0f,
 								0.0f, 1.0f, 0.0f,
-								1.0f, 0.0f, 0.0f,
-								0.0f, 0.0f, 1.0f,
-								0.0f, 0.0f, 1.0f,
-								1.0f, 1.0f, 0.0f,
-								1.0f, 0.0f, 0.0f,
 								0.0f, 1.0f, 0.0f,
+								// Front face
+								0.0f, 0.0f, 1.0f,
+								0.0f, 0.0f, 1.0f,
+								0.0f, 0.0f, 1.0f,
+								0.2f, 0.2f, 1.0f,
+								0.2f, 0.2f, 1.0f,
+								0.2f, 0.2f, 1.0f,
+								// Left face
+								1.0f, 0.2f, 0.2f,
+								1.0f, 0.2f, 0.2f,
+								1.0f, 0.2f, 0.2f,
 								1.0f, 0.0f, 0.0f,
-								0.0f, 0.0f, 1.0f
+								1.0f, 0.0f, 0.0f,
+								1.0f, 0.0f, 0.0f,
+								// Right face
+								1.0f, 0.0f, 0.0f,
+								1.0f, 0.0f, 0.0f,
+								1.0f, 0.0f, 0.0f,
+								1.0f, 0.2f, 0.2f,
+								1.0f, 0.2f, 0.2f,
+								1.0f, 0.2f, 0.2f,
+								// Back face
+								0.2f, 0.2f, 1.0f,
+								0.2f, 0.2f, 1.0f,
+								0.2f, 0.2f, 1.0f,
+								0.0f, 0.0f, 1.0f,
+								0.0f, 0.0f, 1.0f,
+								0.0f, 0.0f, 1.0f,
+								// Top face
+								0.0f, 1.0f, 0.0f,
+								0.0f, 1.0f, 0.0f,
+								0.0f, 1.0f, 0.0f,
+								0.2f, 1.0f, 0.2f,
+								0.2f, 1.0f, 0.2f,
+								0.2f, 1.0f, 0.2f
 							};
 
 							// Create position VBO
 							glGenBuffers(1, posVBO);
 							glBindBuffer(GL_ARRAY_BUFFER, posVBO[0]);
-							glBufferDataf(GL_ARRAY_BUFFER, 9 * 8 * sizeof(float), vertexData, GL_STATIC_DRAW);
+							glBufferDataf(GL_ARRAY_BUFFER, triangleFloatSize * triangleCount * sizeof(float), vertexData, GL_STATIC_DRAW);
 
 							// Create color VBO
 							glGenBuffers(1, colVBO);
 							glBindBuffer(GL_ARRAY_BUFFER, colVBO[0]);
-							glBufferDataf(GL_ARRAY_BUFFER, 9 * 8 * sizeof(float), colorData, GL_STATIC_DRAW);
+							glBufferDataf(GL_ARRAY_BUFFER, triangleFloatSize * triangleCount * sizeof(float), colorData, GL_STATIC_DRAW);
 
 							// Create VAO
 							glGenVertexArrays(1, VAO);
@@ -413,11 +541,11 @@ namespace Sculptition
 							glEnableVertexAttribArray(vertexColorLocation);
 
 							// Create matrices
-							projection = Matrix4x4.CreatePerspectiveFieldOfView(Extensions.DegreesToRadians(75f), screenWidth / screenHeight, 0.1f, 100f);
-							view = Matrix4x4.CreateLookAt(new Vector3(0.8f, 4, 2), Vector3.Zero, new Vector3(0, 1, 0));
-							Matrix4x4 model = Matrix4x4.Identity;
+							projection = Matrix4x4.CreatePerspectiveFieldOfView(Extensions.DegreesToRadians(camera.fieldOfView), screenWidth / screenHeight, 0.1f, 100f);
+							view = Matrix4x4.CreateLookAt(camera.position, camera.position + camera.GetForwardDirection(), camera.GetUpDirection());
+							model = Matrix4x4.Identity;
 
-							MVP = model * view * projection; // C# multiplies differently from other things like GLM; mult order is inverted compared to them.
+							MVP = model * view * projection; // C# multiplies differently from other things like GLM; multiplication order is inverted compared to them.
 
 							// Get OpenGL data
 							Extensions.ConsoleWriteColored("\n<------OpenGL Information------>", ConsoleColor.White);
@@ -684,5 +812,262 @@ namespace Sculptition
 								matrix.M31, matrix.M32, matrix.M33, matrix.M34,
 								matrix.M41, matrix.M42, matrix.M43, matrix.M44 };
 		}
+	}
+
+	// TODO: Test the different key states to see if they change and update as they should.
+	/// <summary>
+	/// A class for managing SDL keyboard events and keeping track of key states.
+	/// </summary>
+	public static class InputManager
+	{
+		public enum KeyState
+		{
+			IsPressed = 0,
+			IsReleased = 1,
+			PressedThisFrame = 2,
+			ReleasedThisFrame = 3
+		}
+
+		// SDL2# provides the SDL buttons named in this enum as a series of constants as opposed to an enum, thereby necessitating this
+		public enum MouseKeycode : byte
+		{
+			SDL_BUTTON_LEFT = 1,
+			SDL_BUTTON_MIDDLE = 2,
+			SDL_BUTTON_RIGHT = 3,
+			SDL_BUTTON_X1 = 4,
+			SDL_BUTTON_X2 = 5
+		}
+
+		// TODO: Change this over to a KeyedCollection. Should improve iteration speed about 5.5x (which would still be rather small, hence why I haven't done it yet)
+		// KeyedCollection ToArray is AFAIK the fastest key/value data structure in terms of constant iteration.
+		private static Dictionary<SDL_Keycode, KeyState> keyStates = new Dictionary<SDL_Keycode, KeyState>
+		{
+			#region Default key state definitions
+			// Letter keys
+			{ SDL_Keycode.SDLK_a, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_b, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_c, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_d, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_e, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_f, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_g, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_h, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_i, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_j, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_k, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_l, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_m, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_n, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_o, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_p, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_q, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_r, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_s, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_t, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_u, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_v, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_w, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_x, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_y, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_z, KeyState.IsReleased },
+			// Arrow keys
+			{ SDL_Keycode.SDLK_RIGHT, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_DOWN, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_LEFT, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_UP, KeyState.IsReleased },
+			// Modifier keys
+			{ SDL_Keycode.SDLK_RCTRL, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_RALT, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_RSHIFT, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_LCTRL, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_LALT, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_LSHIFT, KeyState.IsReleased },
+			// Action keys
+			{ SDL_Keycode.SDLK_RETURN, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_BACKSPACE, KeyState.IsReleased },
+			{ SDL_Keycode.SDLK_ESCAPE, KeyState.IsReleased }
+			#endregion
+		};
+
+		// Mouse key values
+		// These do not use SDL_Keycode, and so require a seperate dictionary
+		private static Dictionary<MouseKeycode, KeyState> mouseKeyStates = new Dictionary<MouseKeycode, KeyState>
+		{
+			{ MouseKeycode.SDL_BUTTON_LEFT, KeyState.IsReleased },
+			{ MouseKeycode.SDL_BUTTON_MIDDLE, KeyState.IsReleased },
+			{ MouseKeycode.SDL_BUTTON_RIGHT, KeyState.IsReleased },
+			{ MouseKeycode.SDL_BUTTON_X1, KeyState.IsReleased },
+			{ MouseKeycode.SDL_BUTTON_X2, KeyState.IsReleased }
+		};
+		
+		#region Internal key state handling & updating
+
+		/// <summary>
+		/// Iterates over the key state dictionary, finding PressedThisFrame and ReleasedThisFrame results and swapping them out for their not-just-this-frame counterparts.
+		/// </summary>
+		internal static void UpdateStates()
+		{
+			foreach (SDL_Keycode key in keyStates.Keys.ToArray())
+			{
+				KeyState state = keyStates[key];
+				if (state == KeyState.PressedThisFrame)
+				{
+					keyStates[key] = KeyState.IsPressed;
+				}
+				else if (state == KeyState.ReleasedThisFrame)
+				{
+					keyStates[key] = KeyState.IsReleased;
+				}
+			}
+
+			foreach (MouseKeycode key in mouseKeyStates.Keys.ToArray())
+			{
+				KeyState state = mouseKeyStates[key];
+				if (state == KeyState.PressedThisFrame)
+				{
+					mouseKeyStates[key] = KeyState.IsPressed;
+				}
+				else if (state == KeyState.ReleasedThisFrame)
+				{
+					mouseKeyStates[key] = KeyState.IsReleased;
+				}
+			}
+		}
+
+		/// <summary>
+		/// Handles a given SDL event.
+		/// </summary>
+		/// <param name="SDLEvent">The SDL event to handle. Will do nothing if it is neither SDL_KEYDOWN or SDL_KEYUP.</param>
+		internal static void HandleEvent(SDL_Event SDLEvent)
+		{
+			if (SDLEvent.type == SDL_EventType.SDL_KEYDOWN)
+			{
+				keyStates[SDLEvent.key.keysym.sym] = KeyState.PressedThisFrame;
+			}
+			else if (SDLEvent.type == SDL_EventType.SDL_KEYUP)
+			{
+				keyStates[SDLEvent.key.keysym.sym] = KeyState.ReleasedThisFrame;
+			}
+			else if (SDLEvent.type == SDL_EventType.SDL_MOUSEBUTTONDOWN)
+			{
+				mouseKeyStates[(MouseKeycode)SDLEvent.button.button] = KeyState.PressedThisFrame;
+			}
+			else if (SDLEvent.type == SDL_EventType.SDL_MOUSEBUTTONUP)
+			{
+				mouseKeyStates[(MouseKeycode)SDLEvent.button.button] = KeyState.ReleasedThisFrame;
+			}
+		}
+
+		#endregion
+
+		#region Key state inspection functions
+
+		/// <summary>
+		/// Returns the KeyState of the given key directly.
+		/// A middle-man for other InputManager key state retrieval functions.
+		/// </summary>
+		/// <param name="key">The key to probe the state of.</param>
+		/// <returns>The KeyState for the given key.</returns>
+		private static KeyState GetKeyState(SDL_Keycode key)
+		{
+			return keyStates[key];
+		}
+
+		/// <summary>
+		/// Returns the KeyState of the given mouse key directly.
+		/// A middle-man for other InputManager key state retrieval functions.
+		/// </summary>
+		/// <param name="key">The mouse key to probe the state of.</param>
+		/// <returns>The KeyState for the given mouse key.</returns>
+		private static KeyState GetKeyState(MouseKeycode key)
+		{
+			return mouseKeyStates[key];
+		}
+
+		/// <summary>
+		/// Returns a value as to whether or not the specified key is currently pressed.
+		/// </summary>
+		/// <param name="key">The key to check.</param>
+		/// <returns>A boolean value representing whether or not the key is currently pressed.</returns>
+		public static bool IsPressed(SDL_Keycode key)
+		{
+			KeyState state = GetKeyState(key);
+			return (state == KeyState.IsPressed || state == KeyState.PressedThisFrame) ? true : false;
+		}
+
+		/// <summary>
+		/// Returns a value as to whether or not the specified mouse key is currently pressed.
+		/// </summary>
+		/// <param name="key">The mouse key to check.</param>
+		/// <returns>A boolean value representing whether or not the mouse key is currently pressed.</returns>
+		public static bool IsPressed(MouseKeycode key)
+		{
+			KeyState state = GetKeyState(key);
+			return (state == KeyState.IsPressed || state == KeyState.PressedThisFrame) ? true : false;
+		}
+
+		/// <summary>
+		/// Returns a value as to whether or not the specified key is currently released.
+		/// </summary>
+		/// <param name="key">The key to check.</param>
+		/// <returns>A boolean value representing whether or not the key is currently released.</returns>
+		public static bool IsReleased(SDL_Keycode key)
+		{
+			KeyState state = GetKeyState(key);
+			return (state == KeyState.IsReleased || state == KeyState.ReleasedThisFrame) ? true : false;
+		}
+
+		/// <summary>
+		/// Returns a value as to whether or not the specified mouse key is currently released.
+		/// </summary>
+		/// <param name="key">The mouse key to check.</param>
+		/// <returns>A boolean value representing whether or not the mouse key is currently released.</returns>
+		public static bool IsReleased(MouseKeycode key)
+		{
+			KeyState state = GetKeyState(key);
+			return (state == KeyState.IsReleased || state == KeyState.ReleasedThisFrame) ? true : false;
+		}
+
+		/// <summary>
+		/// Returns a value as to whether or not the specified key was just pressed this frame.
+		/// </summary>
+		/// <param name="key">The key to check.</param>
+		/// <returns>A boolean value representing whether or not the key was just pressed this frame.</returns>
+		public static bool PressedThisFrame(SDL_Keycode key)
+		{
+			return (keyStates[key] == KeyState.PressedThisFrame) ? true : false;
+		}
+
+		/// <summary>
+		/// Returns a value as to whether or not the specified mouse key was just pressed this frame.
+		/// </summary>
+		/// <param name="key">The mouse key to check.</param>
+		/// <returns>A boolean value representing whether or not the mouse key was just pressed this frame.</returns>
+		public static bool PressedThisFrame(MouseKeycode key)
+		{
+			return (mouseKeyStates[key] == KeyState.PressedThisFrame) ? true : false;
+		}
+
+		/// <summary>
+		/// Returns a value as to whether or not the specified key was just released this frame.
+		/// </summary>
+		/// <param name="key">The key to check.</param>
+		/// <returns>A boolean value representing whether or not the key was just released this frame.</returns>
+		public static bool ReleasedThisFrame(SDL_Keycode key)
+		{
+			return (keyStates[key] == KeyState.ReleasedThisFrame) ? true : false;
+		}
+
+		/// <summary>
+		/// Returns a value as to whether or not the specified mouse key was just released this frame.
+		/// </summary>
+		/// <param name="key">The mouse key to check.</param>
+		/// <returns>A boolean value representing whether or not the mouse key was just released this frame.</returns>
+		public static bool ReleasedThisFrame(MouseKeycode key)
+		{
+			return (mouseKeyStates[key] == KeyState.ReleasedThisFrame) ? true : false;
+		}
+
+		#endregion
 	}
 }

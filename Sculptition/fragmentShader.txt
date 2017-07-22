@@ -1,4 +1,4 @@
-﻿#version 400\n
+﻿#version 450\n
 
 in vec3 color;
 out vec4 fragmentColor;
