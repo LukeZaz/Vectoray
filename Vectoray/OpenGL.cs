@@ -22,7 +22,7 @@ using System.Runtime.InteropServices;
 using System.Numerics;
 using static SDL2.SDL;
 
-using static Sculptition.Extensions;
+using static Vectoray.Extensions;
 
 namespace OpenGL
 {

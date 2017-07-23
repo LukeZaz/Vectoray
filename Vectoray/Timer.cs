@@ -18,7 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using static SDL2.SDL;
 
-namespace Sculptition
+namespace Vectoray
 {
 	public class Timer
 	{

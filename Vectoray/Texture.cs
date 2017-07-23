@@ -22,7 +22,7 @@ using static SDL2.SDL;
 using static SDL2.SDL_image;
 using static SDL2.SDL_ttf;
 
-namespace Sculptition
+namespace Vectoray
 {
 	// TODO: Subclass of Texture designed for and providing functionality for text rendering
 	public class Texture
@@ -167,7 +167,7 @@ namespace Sculptition
 		/// <param name="renderer">Renderer to use.</param>
 		public void Render(int x, int y, IntPtr renderer)
 		{
-			IntPtr renderRectRaw = Sculptition.createRect(x, y, width, height).getRaw();
+			IntPtr renderRectRaw = Vectoray.createRect(x, y, width, height).getRaw();
 
 			SDL_RenderCopy(renderer, texture, IntPtr.Zero, renderRectRaw);
 

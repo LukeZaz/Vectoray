@@ -40,9 +40,9 @@ using static SDL2.SDL_ttf; // Unused, kept for future use
 
 // TODO: Should probably take all the todos in this project and move them over to github issues.
 
-namespace Sculptition
+namespace Vectoray
 {
-	static class Sculptition
+	static class Vectoray
 	{
 		#region Variable declaration
 
@@ -355,7 +355,7 @@ namespace Sculptition
 			// Vertex shader
 			GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
 
-			shaderReader = new StreamReader(assembly.GetManifestResourceStream("Sculptition.vertexShader.txt"));
+			shaderReader = new StreamReader(assembly.GetManifestResourceStream("Vectoray.vertexShader.txt"));
 			string[] vertexShaderSource = shaderReader.ReadToEnd().Replace("\\n", "\n").Split(new[] { Environment.NewLine }, StringSplitOptions.None);
 
 			glShaderSource(vertexShader, (uint)vertexShaderSource.Length, vertexShaderSource, null);
@@ -378,7 +378,7 @@ namespace Sculptition
 				// Fragment shader
 				GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
 
-				shaderReader = new StreamReader(assembly.GetManifestResourceStream("Sculptition.fragmentShader.txt"));
+				shaderReader = new StreamReader(assembly.GetManifestResourceStream("Vectoray.fragmentShader.txt"));
 				string[] fragmentShaderSource = shaderReader.ReadToEnd().Replace("\\n", "\n").Split(new[] { Environment.NewLine }, StringSplitOptions.None);
 
 				glShaderSource(fragmentShader, (uint)fragmentShaderSource.Length, fragmentShaderSource, null);

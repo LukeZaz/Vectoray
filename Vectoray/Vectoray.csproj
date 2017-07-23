@@ -7,8 +7,8 @@
     <ProjectGuid>{FC371613-76BF-42CF-AF78-50A4646A473C}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Sculptition</RootNamespace>
-    <AssemblyName>Sculptition</AssemblyName>
+    <RootNamespace>Vectoray</RootNamespace>
+    <AssemblyName>Vectoray</AssemblyName>
     <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
@@ -66,6 +66,7 @@
   <ItemGroup>
     <Compile Include="OpenGL.cs" />
     <Compile Include="Main.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Texture.cs" />
     <Compile Include="Timer.cs" />
     <Compile Include="Window.cs" />
@@ -82,9 +83,7 @@
       <Install>false</Install>
     </BootstrapperPackage>
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Properties\" />
-  </ItemGroup>
+  <ItemGroup />
   <ItemGroup>
     <EmbeddedResource Include="vertexShader.txt" />
   </ItemGroup>
