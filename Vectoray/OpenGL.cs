@@ -1,5 +1,5 @@
 ﻿/*
-Sculptition; 3D modeling program with an intuitive interface in mind.
+Vectoray; 3D modeling program with an intuitive interface in mind.
 Copyright (C) 2017 LukeZaz
 
 This program is free software: you can redistribute it and/or modify
