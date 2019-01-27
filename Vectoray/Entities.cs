@@ -90,7 +90,7 @@ namespace Vectoray.Entities
 		/// Remove the component of this type from the entity, if present.
 		/// </summary>
 		/// <typeparam name="T">The type of the component to remove.</typeparam>
-		/// <exception cref="SArgumentException">Thrown if no component of the given type exists on this entity.</exception>
+		/// <exception cref="ArgumentException">Thrown if no component of the given type exists on this entity.</exception>
 		public void DestroyComponent<T>() where T : Component
 		{
 			Component c = components.OfType<T>().FirstOrDefault();
