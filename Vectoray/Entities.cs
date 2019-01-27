@@ -16,6 +16,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -60,30 +61,36 @@ namespace Vectoray.Entities
 
 		/// <summary>
 		/// Add a component of a given type to this entity.
+		/// Only one of a specific type of component can be on an entity at once.
 		/// </summary>
 		/// <typeparam name="T">Type of the component to add.</typeparam>
-		public void AddComponent<T>() where T : Component, new()
+		/// <returns>The component that was added.</returns>
+		/// <exception cref="ArgumentException">Thrown if the entity already has a component of this type.</exception>
+		public Component AddComponent<T>() where T : Component, new()
 		{
 			Component c = components.OfType<T>().FirstOrDefault();
 			if (c == null)
 			{
 				c = new T();
 				c.Initialize(this);
+				components.Add(c);
+				return c;
 			}
-			else Debugging.LogError($"AddComponent failed on Entity {id}: entities can only have one component of a type.");
+			else throw new ArgumentException($"Entities cannot have multiple of a type of component. [ID: {id}]");
 		}
 
 		/// <summary>
 		/// Get the component of this type from this entity.
 		/// </summary>
 		/// <typeparam name="T">The type of the component to get.</typeparam>
-		/// <returns>The component of the given type.</returns>
+		/// <returns>The component of the given type, or null if there is none.</returns>
 		public Component GetComponent<T>() where T : Component => components.OfType<T>().FirstOrDefault();
 
 		/// <summary>
 		/// Remove the component of this type from the entity, if present.
 		/// </summary>
 		/// <typeparam name="T">The type of the component to remove.</typeparam>
+		/// <exception cref="SArgumentException">Thrown if no component of the given type exists on this entity.</exception>
 		public void DestroyComponent<T>() where T : Component
 		{
 			Component c = components.OfType<T>().FirstOrDefault();
@@ -92,13 +99,13 @@ namespace Vectoray.Entities
 				c.Destroy();
 				components.Remove(c);
 			}
-			else Debugging.LogError($"DestroyComponent failed on Entity {id}: this entity does not have a component of the provided type.");
+			else throw new ArgumentException($"Entity {id} does not have a component of type {typeof(T).Name} to destroy.");
 		}
 
 		/// <summary>
 		/// Update all components on this entity.
 		/// </summary>
-		internal void UpdateComponents()
+		public void UpdateComponents()
 		{
 			foreach (Component c in components) c.Update();
 		}
@@ -118,6 +125,29 @@ namespace Vectoray.Entities
 		/// A list of freed entity IDs. Used automatically when creating new entities.
 		/// </summary>
 		private static List<int> freeIds = new List<int>();
+
+		/// <summary>
+		/// Completely reset all static variables, destroying ALL entities in the process and moving back to a clean slate.
+		/// This is meant for unit testing; use with extreme caution.
+		/// </summary>
+		public static void DestroyAllAndResetStatics()
+		{
+			List<Entity> allEntities = entities.Values.ToList();
+			foreach (Entity ent in allEntities)
+			{
+				ent.Destroy();
+			}
+
+			entities.Clear();
+			freeIds.Clear();
+			lastHighestID = 0;
+		}
+
+		/// <summary>
+		/// Get a count of all existant entities.
+		/// </summary>
+		/// <returns>An integer count of how many entities currently exist.</returns>
+		public static int GetGlobalEntityCount() => entities.Count();
 
 		/// <summary>
 		/// Get an unused entity ID.
@@ -148,8 +178,8 @@ namespace Vectoray.Entities
 		/// Retrieve an entity by its ID.
 		/// </summary>
 		/// <param name="id">The ID of the entity to find.</param>
-		/// <returns>The entity with the given ID.</returns>
-		public static Entity GetById(int id) => entities[id];
+		/// <returns>The entity with the given ID, or null if there was none.</returns>
+		public static Entity GetById(int id) => entities.TryGetValue(id, out Entity ent) ? ent : null;
 
 		#endregion
 	}
@@ -195,6 +225,11 @@ namespace Vectoray.Entities
 		protected virtual void Start() { }
 
 		/// <summary>
+		/// Called once per frame if this component is enabled and initialized.
+		/// </summary>
+		protected virtual void OnUpdate() { }
+
+		/// <summary>
 		/// Called when this component is enabled.
 		/// </summary>
 		protected virtual void OnEnabled() { }
@@ -213,17 +248,13 @@ namespace Vectoray.Entities
 		/// Called once per frame.
 		/// Checks if this component is initialized and enabled and calls OnUpdate if so.
 		/// </summary>
+		/// <exception cref="InvalidOperationException">Thrown if component is not initialized.</exception>
 		public void Update()
 		{
 			if (initialized && enabled) OnUpdate();
 			else if (initialized) Debugging.LogWarning("'Update' called on disabled component!");
-			else Debugging.LogWarning("'Update' called on uninitialized component!");
+			else throw new InvalidOperationException($"Cannot call Update on uninitialized components. [{entity?.id} -> {GetType().Name}]");
 		}
-
-		/// <summary>
-		/// Called once per frame if this component is enabled and initialized.
-		/// </summary>
-		protected virtual void OnUpdate() { }
 
 		/// <summary>
 		/// Destroy this component.
@@ -244,17 +275,14 @@ namespace Vectoray.Entities
 		/// <summary>
 		/// Set whether or not this component is enabled.
 		/// This will call either OnEnabled or OnDisabled as appropriate.
-		/// Will not run if this component is not yet initialized.
 		/// </summary>
 		/// <param name="value">The new status for this component.</param>
+		/// <exception cref="InvalidOperationException">Thrown if component is not initialized.</exception>
 		public void SetEnabled(bool value)
 		{
-			// TODO: throw exception instead?
-			if (!initialized)
-			{
-				Debugging.LogWarning("'SetEnabled' called on uninitialized component!");
-				return;
-			}
+			if (!initialized) throw new InvalidOperationException($"Cannot use SetEnabled on uninitialized components. [{entity?.id} -> {GetType().Name}]");
+
+			if (enabled == value) return;
 
 			enabled = value;
 			if (value == true) OnEnabled();
