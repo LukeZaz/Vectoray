@@ -302,6 +302,20 @@ namespace Vectoray.Rendering.OpenGL
         public static string GetExtensionString(int index) =>
             Marshal.PtrToStringAnsi(_glGetStringi(GLConnectionInfo.EXTENSIONS, index));
 
+        /// <summary>
+        /// Logs all non-extension OpenGL connection information to the console.
+        /// </summary>
+        public static void LogConnectionInfo()
+        {
+            Debug.LogColored("<| OpenGL Connection Information |>", ConsoleColor.White);
+            Debug.Log(
+                $" | Vendor: {GL.GetString(GLConnectionInfo.VENDOR)}\n"
+              + $" | Renderer: {GL.GetString(GLConnectionInfo.RENDERER)}\n"
+              + $" | Version: {GL.GetString(GLConnectionInfo.VERSION)}\n"
+              + $"<| GLSL version: {GL.GetString(GLConnectionInfo.SHADING_LANGUAGE_VERSION)}"
+            );
+        }
+
         #endregion
 
         /// <summary>

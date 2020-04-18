@@ -43,16 +43,7 @@ namespace Vectoray
             if (Initialize() is Some<Window>(Window mainWindow))
             {
                 Debug.Log($"Initialization worked fine! Last reported OpenGL error was: {GL.GetError()}");
-                Debug.LogColored("<| OpenGL Connection Information |>", ConsoleColor.White);
-
-                Debug.Log(
-                    $"Vendor: {GL.GetString(GLConnectionInfo.VENDOR)}\n"
-                  + $"Renderer: {GL.GetString(GLConnectionInfo.RENDERER)}\n"
-                  + $"Version: {GL.GetString(GLConnectionInfo.VERSION)}\n"
-                  + $"GLSL version: {GL.GetString(GLConnectionInfo.SHADING_LANGUAGE_VERSION)}"
-                );
-
-                Debug.LogColored("<| OpenGL Connection Information |>", ConsoleColor.White);
+                GL.LogConnectionInfo();
 
                 GL.ClearColor(0.5f, 0.5f, 0.5f, 1);
                 GL.Clear(GLClearMask.COLOR_BUFFER_BIT);
