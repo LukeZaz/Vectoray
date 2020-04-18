@@ -16,10 +16,27 @@ You should have received a copy of the GNU Lesser General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#region Explanation: Why not nullables?
+// While that'd work fine for value types, it wouldn't for reference types. The reasons for this are threefold:
+// First and least importantly, C# 8.0 requires nullabe reference types first be enabled by way of
+// either a preprocessor directive or setting the <Nullable> tag in the .csproj file. This is annoying and I'm
+// not sure why it's not enabled by default.
+
+// Second and more importantly, they generate warnings instead of errors. Attempting to use a nullable type
+// should prevent successful compilation so that these issues do not leak through to runtime.
+
+// Lastly, C# nullables do not allow you to pack in error information, so Result<T, E> would've been necessary anyway.
+// Exceptions just aren't as good by comparison, and they're only used in this program
+// for situations in which their *not* being caught is the whole point; i.e., "this needs to crash now because
+// something went very seriously wrong"
+#endregion
+
 using System;
 
 namespace Vectoray
 {
+    // TODO: Like all the other 'unsafe' methods of unwrapping outcomes, this should be moved elsewhere so it
+    // requires a separate 'using', so as to discourage use.
     // TODO: Unit testing.
     /// <summary>
     /// An exception that is thrown when an `Opt&lt;T&gt;` is unwrapped, but its value is `null` or `None`.
@@ -31,21 +48,21 @@ namespace Vectoray
         public EmptyUnwrapException(string message, Exception inner) : base(message, inner) { }
     }
 
-    // TODO: Investigate what's giving the formatting options for the XML summaries.
-    // I thought it was Rust, but I disabled it for this workspace and it still worked so...?
     /// <summary>
-    /// Used to wrap a value that may be null such that it cannot be used until properly checked,
-    /// thereby avoiding NullReference exceptions.
+    /// Used to wrap a value and an error type for containing information about
+    /// multiple types of failure state, such that the value in question cannot be
+    /// used without also handling the failure states in some way.
     /// 
-    /// Various methods exist to retrieve the inner value, including `Unwrap` and `UnwrapOr(T defaultVal)`,
-    /// however the recommended method is to use pattern matching, e.g.:
+    /// While other methods of extracting the inner values are available (e.g. `UnwrapOr(defaultValue)`),
+    /// the recommended method is to use pattern matching, e.g.:
     /// ```
-    /// Opt&lt;int&gt; example = new Some&lt;int&gt;(5);
-    /// if (example is Some&lt;int&gt;(int inner))
+    /// Result&lt;int, string&gt; example = new Valid&lt;int, string&gt;(5);
+    /// if (example is Valid&lt;int, string&gt;(int inner))
     /// Console.WriteLine(inner); // Prints '5'.
     /// ```
     /// </summary>
-    /// <typeparam name="T">The wrapped type of this Option.</typeparam>
+    /// <typeparam name="T">The value type.</typeparam>
+    /// <typeparam name="E">The error type.</typeparam>
     #region Explanation for abstract class
     // While Some<T> and None<T> are both perfect fits for being structs, and thus Opt<T> would be fine as an interface,
     // there are two issues that prevent this from being ideal:
@@ -66,7 +83,7 @@ namespace Vectoray
     // Additionally, seeing as the XML docs comprise probably about 85% of the contents of this file, compacting the
     // code into the base class would save nothing unless it first eliminated a huge amount of said documentation.
     #endregion
-    public abstract class Opt<T>
+    public abstract class Result<T, E>
     {
         #region Explanation for access modifier
         // Private protected limits access to the containing class or any that derives from it
@@ -79,6 +96,186 @@ namespace Vectoray
         // If a function returns Opt<T>, you should be able to assume it's either Some or None;
         // an unexpected third class would only introduce confusion.
         #endregion
+        private protected Result() { }
+
+        /// <summary>
+        /// Attempt to unwrap this result and retrieve the value inside, or return `defaultValue`
+        /// if this result is an `Invalid`.
+        /// 
+        /// **Examples:**
+        /// ```
+        /// Result&lt;int, string&gt; errorResult = new Error&lt;int, string&gt;("It's dead, Jim.");
+        /// int val = errorResult.UnwrapOr(5);
+        /// Console.WriteLine(val); // Prints '5'.
+        /// 
+        /// Result&lt;int, string&gt; validResult = new Valid&lt;int, string&gt;(10);
+        /// int val = validResult.UnwrapOr(5);
+        /// Console.WriteLine(val); // Prints '10'.
+        /// ```
+        /// </summary>
+        /// <param name="defaultValue">The value to default to if this result is an `Invalid`.</param>
+        /// <returns>The inner value of this result, or `defaultValue` if this result is an `Invalid`.</returns>
+        public abstract T UnwrapOr(T defaultValue);
+    }
+
+    /// <summary>
+    /// A container deriving `Result&lt;T, E&gt;`, used to represent a successful result.
+    /// 
+    /// While other methods of extracting the inner value are available (e.g. `UnwrapOr(defaultValue)`),
+    /// the recommended method is to use pattern matching, e.g.:
+    /// ```
+    /// Result&lt;int, string&gt; example = new Valid&lt;int, string&gt;(5);
+    /// if (example is Valid&lt;int, string&gt;(int inner))
+    /// Console.WriteLine(inner); // Prints '5'.
+    /// ```
+    /// </summary>
+    /// <typeparam name="T">The type of the inner value of this `Valid`.</typeparam>
+    /// <typeparam name="E">The unused error type of the result this `Valid` derives.</typeparam>
+    public sealed class Valid<T, E> : Result<T, E>
+    {
+        private readonly T value;
+        private T Value
+        {
+            get
+            {
+                // An exception is thrown here because if you create an instance of Valid
+                // with a null inner value (despite it disallowing this in its constructor),
+                // then something's wrong.
+                if (value == null)
+                    throw new NullReferenceException(
+                        $"Inner value of {typeof(Valid<T, E>)} was retrieved, but was found to be null.");
+                else return value;
+            }
+        }
+
+        /// <summary>
+        /// Create a new `Valid` to wrap `value`.
+        /// </summary>
+        /// <param name="value">The value to wrap.</param>
+        /// <exception cref="NullReferenceException">Thrown if `value` is null.</exception>
+        public Valid(T value)
+        {
+            if (value == null)
+                throw new ArgumentNullException(
+                    $"Cannot create an instance of {typeof(Valid<T, E>)} with a null inner value.");
+            this.value = value;
+        }
+
+        /// <summary>
+        /// Unwrap this `Valid` and retrieve the value inside. While other results use `defaultValue`
+        /// as a backup value, null values are not allowed for instances of `Valid`; hence, `defaultValue`
+        /// will never be returned.
+        /// 
+        /// For obvious reasons, you probably don't want to use this function.
+        /// Instead, use pattern matching with `switch` or `is`.
+        /// </summary>
+        /// <param name="defaultValue">The value that would be defaulted to, were this an instance of `Error` instead.
+        /// Never used.</param>
+        /// <returns>The value encapsulated by this `Valid`.</returns>
+        /// <exception cref="NullReferenceException">
+        /// Can be thrown in the extraordinary event an instance of `Valid` is somehow created with a null inner value.
+        /// This should never happen and represents a serious error, so this exception is used instead of `defaultValue`.
+        /// </exception>
+        public override T UnwrapOr(T defaultValue) => Value;
+
+        /// <summary>
+        /// Deconstruct this `Valid` and retrieve the inner value.
+        /// </summary>
+        /// <param name="value">The variable to fill with the inner value of this `Valid`.</param>
+        /// <exception cref="NullReferenceException">
+        /// Can be thrown in the extraordinary event an instance of `Valid` is somehow created with a null inner value.
+        /// This should never happen and represents a serious error, so this exception is used instead of remaining
+        /// silent.
+        /// </exception>
+        public void Deconstruct(out T value) => value = Value;
+    }
+
+    /// <summary>
+    /// A container deriving `Result&lt;T, E&gt;`, used to represent an unsuccessful result.
+    /// 
+    /// While other methods of extracting the error value are available (e.g. `UnwrapOr(defaultValue)`),
+    /// the recommended method is to use pattern matching, e.g.:
+    /// ```
+    /// Result&lt;int, string&gt; example = new Invalid&lt;int, string&gt;("It's dead, Jim.");
+    /// if (example is Invalid&lt;int, string&gt;(string error))
+    /// Console.WriteLine(error); // Prints "It's dead, Jim."
+    /// ```
+    /// </summary>
+    /// <typeparam name="T">The unused success type of the result this `Valid` derives.</typeparam>
+    /// <typeparam name="E">The type of the error value of this `Invalid`.</typeparam>
+    public sealed class Invalid<T, E> : Result<T, E>
+    {
+        public readonly E errorValue;
+        private E ErrorValue
+        {
+            get
+            {
+                // An exception is thrown here because if you create an instance of Invalid
+                // with a null inner value (despite it disallowing this in its constructor),
+                // then something's wrong.
+                if (errorValue == null)
+                    throw new NullReferenceException(
+                        $"Inner value of {typeof(Invalid<T, E>)} was retrieved, but was found to be null.");
+                else return errorValue;
+            }
+        }
+
+        /// <summary>
+        /// Create a new `Invalid` to wrap `errorValue`.
+        /// </summary>
+        /// <param name="errorValue">The error to wrap.</param>
+        /// <exception cref="NullReferenceException">Thrown if `errorValue` is null.</exception>
+        public Invalid(E errorValue)
+        {
+            if (errorValue == null)
+                throw new ArgumentNullException(
+                    $"Cannot create an instance of {typeof(Invalid<T, E>)} with a null inner value.");
+            this.errorValue = errorValue;
+        }
+
+        /// <summary>
+        /// Attempt to unwrap an inner value from this `Invalid`, using `defaultValue` as a backup value. As this
+        /// type represents an error, this method will **always** return `defaultVal`.
+        /// 
+        /// For obvious reasons, you probably don't want to use this method.
+        /// </summary>
+        /// <param name="defaultValue">The value to return, as this class cannot be successfully unwrapped.</param>
+        /// <returns>Always returns `defaultValue`.</returns>
+        public override T UnwrapOr(T defaultValue) => defaultValue;
+
+        /// <summary>
+        /// Deconstruct this `Invalid` and retrieve the inner error value.
+        /// </summary>
+        /// <param name="errorValue">The variable to fill with the inner error value of this `Invalid`.</param>
+        /// <exception cref="NullReferenceException">
+        /// Can be thrown in the extraordinary event an instance of `Invalid` is somehow created with a null inner value.
+        /// This should never happen and represents a serious error, so this exception is thrown instead of remaining
+        /// silent.
+        /// </exception>
+        public void Deconstruct(out E errorValue) => errorValue = ErrorValue;
+    }
+
+
+    // TODO: Fix deconstruct method so None<T> doesn't take params
+    // TODO: Remove Unwrap. Place it in a separate namespace?
+    // TODO: Add static extensions class of some kind. Create an ext method to convert T to Some/None<T>.
+    /// <summary>
+    /// Used to wrap a value that may be null such that it cannot be used until properly checked,
+    /// thereby avoiding NullReference exceptions.
+    /// 
+    /// Various methods exist to retrieve the inner value, including `Unwrap` and `UnwrapOr(T defaultVal)`,
+    /// however the recommended method is to use pattern matching, e.g.:
+    /// ```
+    /// Opt&lt;int&gt; example = new Some&lt;int&gt;(5);
+    /// if (example is Some&lt;int&gt;(int inner))
+    /// Console.WriteLine(inner); // Prints '5'.
+    /// ```
+    /// </summary>
+    /// <typeparam name="T">The wrapped type of this Option.</typeparam>
+    // This is an abstract class for the same reasons as Result<T, E>. See the comment block on it for details.
+    public abstract class Opt<T>
+    {
+        // Likewise, the reasons for the access modifier are the same as Result<T, E> as well.
         private protected Opt() { }
 
         /// <summary>
@@ -109,9 +306,9 @@ namespace Vectoray
         /// Console.WriteLine(val); // Prints '5'.
         /// ```
         /// </summary>
-        /// <param name="defaultVal">The value to default to if this option is either `None` or `null`.</param>
+        /// <param name="defaultValue">The value to default to if this option is either `None` or `null`.</param>
         /// <returns>The inner value of this option, or `defaultVal` if this option is either `None` or `null`.</returns>
-        public abstract T UnwrapOr(T defaultVal);
+        public abstract T UnwrapOr(T defaultValue);
 
         /// <summary>
         /// Attempt to unwrap this option and retrieve the value inside. If `None` or `null` is encountered,
@@ -196,15 +393,15 @@ namespace Vectoray
         /// For obvious reasons, you probably don't want to use this function.
         /// Instead, use either pattern matching or `Unwrap()`.
         /// </summary>
-        /// <param name="defaultVal">The value that would be defaulted to, were this an instance of `None` instead.
+        /// <param name="defaultValue">The value that would be defaulted to, were this an instance of `None` instead.
         /// Never used.</param>
         /// <returns>The value encapsulated by this `Some`.</returns>
         /// <exception cref="EmptyUnwrapException">
         /// Can be thrown in the extraordinary event an instance of `Some` is somehow created with a null inner value.
         /// This should never happen and represents a serious error, so this exception is used instead of `defaultVal`.
         /// </exception>
-        public override T UnwrapOr(T defaultVal) =>
-        Expect("Attempted to call Opt<T>.UnwrapOr on a Some<T> with a value of null. (...how?)");
+        public override T UnwrapOr(T defaultValue) =>
+            Expect("Attempted to call Opt<T>.UnwrapOr on a Some<T> with a value of null. (...how?)");
 
         /// <summary>
         /// Unwrap this `Some` and retrieve the value inside.
@@ -267,9 +464,9 @@ namespace Vectoray
         /// 
         /// For obvious reasons, you probably don't want to use this method.
         /// </summary>
-        /// <param name="defaultVal">The value to return, as this class cannot be successfully unwrapped.</param>
+        /// <param name="defaultValue">The value to return, as this class cannot be successfully unwrapped.</param>
         /// <returns>Always returns `defaultVal`.</returns>
-        public override T UnwrapOr(T defaultVal) => defaultVal;
+        public override T UnwrapOr(T defaultValue) => defaultValue;
 
         /// <summary>
         /// Attempt to unwrap an inner value from this `None`. As this does not have
@@ -281,7 +478,7 @@ namespace Vectoray
         /// <returns>Nothing; this method is guaranteed to throw an EmptyUnwrapException.</returns>
         /// <exception cref="EmptyUnwrapException">Always thrown.</exception>
         public override T Expect(string message) =>
-        throw new EmptyUnwrapException(message);
+            throw new EmptyUnwrapException(message);
 
         /// <summary>
         /// Map this `None&lt;T&gt;` to `None&lt;R&gt;` by using the provided function
