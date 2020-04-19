@@ -48,6 +48,46 @@ namespace Vectoray
         public EmptyUnwrapException(string message, Exception inner) : base(message, inner) { }
     }
 
+    /// <summary>
+    /// A helper class containing various extensions to make working with `Opt&lt;T&gt;`
+    /// and `Result&lt;T, E&gt;` types easier.
+    /// </summary>
+    public static class Outcomes
+    {
+        /// <summary>
+        /// Create a new `Valid` which wraps this value and associates an error type with it.
+        /// </summary>
+        /// <param name="value">The value to wrap.</param>
+        /// <typeparam name="T">The value's type.</typeparam>
+        /// <typeparam name="E">The error type to associate.</typeparam>
+        /// <returns>A new `Valid&lt;T, E&gt; that contains the given value.</returns>
+        public static Valid<T, E> Valid<T, E>(this T value) where E : Exception => new Valid<T, E>(value);
+
+        /// <summary>
+        /// Create a new `Invalid` which wraps this error and associates a success type with it.
+        /// </summary>
+        /// <param name="error">The error to wrap.</param>
+        /// <typeparam name="T">The success value type to associate.</typeparam>
+        /// <typeparam name="E">The error's type.</typeparam>
+        /// <returns>A new `Invalid&lt;T, E&gt; that contains the given error.</returns>
+        public static Invalid<T, E> Invalid<T, E>(this E error) where E : Exception => new Invalid<T, E>(error);
+
+        /// <summary>
+        /// Create a new `Some` which wraps this value.
+        /// </summary>
+        /// <param name="value">The value to wrap.</param>
+        /// <typeparam name="T">The value's type.</typeparam>
+        /// <returns>A new `Some&lt;T&gt;` that contains the given value.</returns>
+        public static Some<T> Some<T>(this T value) => new Some<T>(value);
+
+        /// <summary>
+        /// Create a new `None` using this value's type.
+        /// </summary>
+        /// <typeparam name="T">The value's type.</typeparam>
+        /// <returns>A new `None&lt;T&gt;`.</returns>
+        public static None<T> None<T>(this T _) => new None<T>();
+    }
+
     #region Result types
 
     /// <summary>

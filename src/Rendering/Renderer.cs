@@ -107,7 +107,7 @@ namespace Vectoray.Rendering
                 return new None<Renderer>();
             }
 
-            return new Some<Renderer>(new Renderer(context, window));
+            return new Renderer(context, window).Some();
         }
 
         /// <summary>
