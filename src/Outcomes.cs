@@ -48,6 +48,8 @@ namespace Vectoray
         public EmptyUnwrapException(string message, Exception inner) : base(message, inner) { }
     }
 
+    #region Result types
+
     /// <summary>
     /// Used to wrap a value and an error type for containing information about
     /// multiple types of failure state, such that the value in question cannot be
@@ -255,6 +257,9 @@ namespace Vectoray
         public void Deconstruct(out E errorValue) => errorValue = ErrorValue;
     }
 
+    #endregion
+
+    #region Option types
 
     // TODO: Fix deconstruct method so None<T> doesn't take params
     // TODO: Remove Unwrap. Place it in a separate namespace?
@@ -335,16 +340,6 @@ namespace Vectoray
         /// <typeparam name="R">The new `Opt` type to return.</typeparam>
         /// <returns>The converted `Opt&lt;R&gt;` value.</returns>
         public abstract Opt<R> Map<R>(Func<T, R> mapFunction);
-
-        /// <summary>
-        /// Deconstruct this `Opt`. Effectively an alias for `Unwrap()` that instead utilizes an `out` argument.
-        /// Primarily provided for pattern matching purposes.
-        /// </summary>
-        /// <param name="value">The variable to fill with the inner value of this `Opt`.</param>
-        /// <exception cref="EmptyUnwrapException">
-        /// Thrown if this option is either a `None` class or has an inner value of `null`.
-        /// </exception>
-        public void Deconstruct(out T value) => value = Unwrap();
     }
 
     /// <summary>
@@ -427,6 +422,12 @@ namespace Vectoray
         /// <typeparam name="R">The new `Some` type to return.</typeparam>
         /// <returns>The converted `Some&lt;R&gt;` value.</returns>
         public override Opt<R> Map<R>(Func<T, R> mapFunction) => new Some<R>(mapFunction(value));
+
+        /// <summary>
+        /// Deconstruct this `Some` and retrieve the inner value.
+        /// </summary>
+        /// <param name="value">The variable to fill with the inner value of this `Some`.</param>
+        public void Deconstruct(out T value) => value = Unwrap();
     }
 
     /// <summary>
@@ -489,6 +490,8 @@ namespace Vectoray
         /// <returns>The converted `None&lt;R&gt;` value.</returns>
         public override Opt<R> Map<R>(Func<T, R> mapFunction) => new None<R>();
     }
+
+    #endregion
 
     // Why yes, I did program in Rust for a while! Why do you ask?
 }
