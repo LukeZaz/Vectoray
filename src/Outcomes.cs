@@ -64,7 +64,7 @@ namespace Vectoray
     /// ```
     /// </summary>
     /// <typeparam name="T">The value type.</typeparam>
-    /// <typeparam name="E">The error type.</typeparam>
+    /// <typeparam name="E">The error type which extends `System.Exception`.</typeparam>
     #region Explanation for abstract class
     // While Some<T> and None<T> are both perfect fits for being structs, and thus Opt<T> would be fine as an interface,
     // there are two issues that prevent this from being ideal:
@@ -85,7 +85,7 @@ namespace Vectoray
     // Additionally, seeing as the XML docs comprise probably about 85% of the contents of this file, compacting the
     // code into the base class would save nothing unless it first eliminated a huge amount of said documentation.
     #endregion
-    public abstract class Result<T, E>
+    public abstract class Result<T, E> where E : Exception
     {
         #region Explanation for access modifier
         // Private protected limits access to the containing class or any that derives from it
@@ -133,7 +133,7 @@ namespace Vectoray
     /// </summary>
     /// <typeparam name="T">The type of the inner value of this `Valid`.</typeparam>
     /// <typeparam name="E">The unused error type of the result this `Valid` derives.</typeparam>
-    public sealed class Valid<T, E> : Result<T, E>
+    public sealed class Valid<T, E> : Result<T, E> where E : Exception
     {
         private readonly T value;
         private T Value
@@ -205,35 +205,20 @@ namespace Vectoray
     /// </summary>
     /// <typeparam name="T">The unused success type of the result this `Valid` derives.</typeparam>
     /// <typeparam name="E">The type of the error value of this `Invalid`.</typeparam>
-    public sealed class Invalid<T, E> : Result<T, E>
+    public sealed class Invalid<T, E> : Result<T, E> where E : Exception
     {
-        public readonly E errorValue;
-        private E ErrorValue
-        {
-            get
-            {
-                // An exception is thrown here because if you create an instance of Invalid
-                // with a null inner value (despite it disallowing this in its constructor),
-                // then something's wrong.
-                if (errorValue == null)
-                    throw new NullReferenceException(
-                        $"Inner value of {typeof(Invalid<T, E>)} was retrieved, but was found to be null.");
-                else return errorValue;
-            }
-        }
+        private readonly E errorValue;
+        public E ErrorValue => errorValue ?? throw new NullReferenceException(
+                $"Inner value of {typeof(Invalid<T, E>)} was retrieved, but was found to be null.");
 
         /// <summary>
         /// Create a new `Invalid` to wrap `errorValue`.
         /// </summary>
         /// <param name="errorValue">The error to wrap.</param>
         /// <exception cref="NullReferenceException">Thrown if `errorValue` is null.</exception>
-        public Invalid(E errorValue)
-        {
-            if (errorValue == null)
-                throw new ArgumentNullException(
-                    $"Cannot create an instance of {typeof(Invalid<T, E>)} with a null inner value.");
-            this.errorValue = errorValue;
-        }
+        public Invalid(E errorValue) =>
+            this.errorValue = errorValue ?? throw new ArgumentNullException(
+                $"Cannot create an instance of {typeof(Invalid<T, E>)} with a null inner value.");
 
         /// <summary>
         /// Attempt to unwrap an inner value from this `Invalid`, using `defaultValue` as a backup value. As this
