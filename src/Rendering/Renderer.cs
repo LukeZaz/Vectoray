@@ -47,13 +47,13 @@ namespace Vectoray.Rendering
     {
         #region Variable & property declaration
 
-        private IntPtr context;
-        private IntPtr window;
+        private readonly IntPtr context;
+        private readonly IntPtr window;
 
         /// <summary>
         /// Whether or not this renderer's inner OpenGL context is current.
         /// </summary>
-        public bool isCurrentContext
+        public bool IsCurrentContext
         {
             get
             {
@@ -94,7 +94,7 @@ namespace Vectoray.Rendering
         /// <returns>An option representing whether or not the renderer was successfully created.</returns>
         public static Opt<Renderer> CreateRenderer(IntPtr window)
         {
-            if (!GL.configAttributesSet)
+            if (!GL.ConfigAttributesSet)
             {
                 Debug.LogError("Cannot create an OpenGL renderer before vital OpenGL attributes have been set.");
                 return new None<Renderer>();
@@ -138,7 +138,7 @@ namespace Vectoray.Rendering
         /// <returns>Whether or not the VSync mode was set successfully.</returns>
         public bool SetVSync(VSyncMode mode, bool forceCurrentContext)
         {
-            if (!isCurrentContext)
+            if (!IsCurrentContext)
             {
                 if (!forceCurrentContext) return false;
                 else if (!MakeCurrent())

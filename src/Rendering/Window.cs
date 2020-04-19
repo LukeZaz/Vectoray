@@ -29,75 +29,75 @@ namespace Vectoray.Rendering
 
         private IntPtr windowPointer;
 
-        public Renderer renderer { get; private set; }
+        public Renderer Renderer { get; private set; }
 
         /// <summary>
         /// Whether or not this window has been fully created and initialized.
         /// </summary>
-        public bool initialized => windowPointer != IntPtr.Zero;
+        public bool Initialized => windowPointer != IntPtr.Zero;
 
         /// <summary>
         /// Whether or not this window is in fullscreen mode.
         /// 
         /// Different from borderless fullscreen in that this results in a video mode change.
         /// </summary>
-        public bool isFullscreen => CheckFlag(SDL_WINDOW_FULLSCREEN);
+        public bool IsFullscreen => CheckFlag(SDL_WINDOW_FULLSCREEN);
         /// <summary>
         /// Whether or not this window is in borderless fullscreen mode.
         /// 
         /// Different from regular fullscreen in that this is effectively windowed mode,
         /// but scaled to cover the monitor and with window decorations removed.
         /// </summary>
-        public bool isFullscreenBorderless => CheckFlag(SDL_WINDOW_FULLSCREEN_DESKTOP);
+        public bool IsFullscreenBorderless => CheckFlag(SDL_WINDOW_FULLSCREEN_DESKTOP);
         /// <summary>
         /// Whether or not this window is in regular windowed mode.
         /// 
         /// Effectively equal to checking both <code>isFullscreen</code> and <code>isFullscreenBorderless</code> at once.
         /// </summary>
-        public bool isWindowed => !isFullscreen && !isFullscreenBorderless;
+        public bool IsWindowed => !IsFullscreen && !IsFullscreenBorderless;
         /// <summary>
         /// Whether or not this window can support an OpenGL context.
         /// </summary>
-        public bool supportsOpenGL => CheckFlag(SDL_WINDOW_OPENGL);
+        public bool SupportsOpenGL => CheckFlag(SDL_WINDOW_OPENGL);
         /// <summary>
         /// Whether or not this window is hidden.
         /// </summary>
-        public bool isHidden => CheckFlag(SDL_WINDOW_HIDDEN);
+        public bool IsHidden => CheckFlag(SDL_WINDOW_HIDDEN);
         /// <summary>
         /// Whether or not this window has window decorations enabled (i.e. a border).
         /// </summary>
-        public bool hasDecoration => !CheckFlag(SDL_WINDOW_BORDERLESS);
+        public bool HasDecoration => !CheckFlag(SDL_WINDOW_BORDERLESS);
         /// <summary>
         /// Whether or not this window is resizable.
         /// </summary>
-        public bool isResizable => CheckFlag(SDL_WINDOW_RESIZABLE);
+        public bool IsResizable => CheckFlag(SDL_WINDOW_RESIZABLE);
         /// <summary>
         /// Whether or not this window is minimized.
         /// </summary>
-        public bool isMinimized => CheckFlag(SDL_WINDOW_MINIMIZED);
+        public bool IsMinimized => CheckFlag(SDL_WINDOW_MINIMIZED);
         /// <summary>
         /// Whether or not this window is maximized.
         /// </summary>
-        public bool isMaximized => CheckFlag(SDL_WINDOW_MAXIMIZED);
+        public bool IsMaximized => CheckFlag(SDL_WINDOW_MAXIMIZED);
         /// <summary>
         /// Whether or not this window has grabbed input. If true, this means both that
         /// the mouse is currently locked to the window and that it has keyboard focus.
         /// </summary>
-        public bool inputGrabbed => CheckFlag(SDL_WINDOW_INPUT_GRABBED);
+        public bool InputGrabbed => CheckFlag(SDL_WINDOW_INPUT_GRABBED);
         /// <summary>
         /// Whether or not this window has input focus.
         /// 
         /// (This does not include mouse focus.)
         /// </summary>
-        public bool hasInputFocus => CheckFlag(SDL_WINDOW_INPUT_FOCUS);
+        public bool HasInputFocus => CheckFlag(SDL_WINDOW_INPUT_FOCUS);
         /// <summary>
         /// Whether or not the mouse is currently hovering over this window.
         /// </summary>
-        public bool mouseIsHovering => CheckFlag(SDL_WINDOW_MOUSE_FOCUS);
+        public bool MouseIsHovering => CheckFlag(SDL_WINDOW_MOUSE_FOCUS);
         /// <summary>
         /// Whether or not this window is set to use High DPI mode, provided it is supported.
         /// </summary>
-        public bool usesHighDPI => CheckFlag(SDL_WINDOW_ALLOW_HIGHDPI);
+        public bool UsesHighDPI => CheckFlag(SDL_WINDOW_ALLOW_HIGHDPI);
 
         #endregion
 
@@ -128,7 +128,7 @@ namespace Vectoray.Rendering
             SDL_WindowFlags flags = 0)
         {
             Window window = new Window(SDL_CreateWindow(title, x, y, w, h, flags));
-            if (!window.initialized)
+            if (!window.Initialized)
             {
                 Debug.LogError($"Failed to create window '{title}'! SDL error: {SDL_GetError()}");
                 return new None<Window>();
@@ -142,7 +142,7 @@ namespace Vectoray.Rendering
         /// </summary>
         public void Free()
         {
-            if (initialized)
+            if (Initialized)
             {
                 SDL_DestroyWindow(windowPointer);
                 windowPointer = IntPtr.Zero;
@@ -163,13 +163,13 @@ namespace Vectoray.Rendering
         /// <returns>An option representing whether or not the Renderer was successfully created.</returns>
         public Opt<Renderer> CreateRenderer()
         {
-            if (this.renderer != null)
+            if (this.Renderer != null)
             {
                 Debug.LogError("Cannot create an OpenGL context for a window that already has one.");
                 return new None<Renderer>();
             }
 
-            if (!supportsOpenGL)
+            if (!SupportsOpenGL)
             {
                 Debug.LogError("Cannot create an OpenGL context for a window that does not support it.");
                 return new None<Renderer>();
@@ -179,7 +179,7 @@ namespace Vectoray.Rendering
             // and returned instead of just a detail-lacking 'None' value.
             if (Renderer.CreateRenderer(windowPointer) is Some<Renderer> some)
             {
-                this.renderer = some.Unwrap();
+                this.Renderer = some.Unwrap();
                 return some;
             }
             else return new None<Renderer>();
@@ -193,14 +193,13 @@ namespace Vectoray.Rendering
         /// <returns>A tuple of the width & height of this window, or null if this window is not yet initialized.</returns>
         public (int, int)? GetSize()
         {
-            if (!initialized)
+            if (!Initialized)
             {
                 Debug.LogError($"Cannot use GetSize method on uninitialized window '{SDL_GetWindowTitle(windowPointer)}'.");
                 return null;
             }
 
-            int width, height;
-            SDL_GetWindowSize(windowPointer, out width, out height);
+            SDL_GetWindowSize(windowPointer, out int width, out int height);
             return (width, height);
         }
 
@@ -209,15 +208,15 @@ namespace Vectoray.Rendering
         /// </summary>
         public void Raise()
         {
-            if (initialized) SDL_RaiseWindow(windowPointer);
+            if (Initialized) SDL_RaiseWindow(windowPointer);
             else Debug.LogError($"Cannot use Raise method on uninitialized window '{SDL_GetWindowTitle(windowPointer)}'.");
         }
 
         public void SwapWindow()
         {
-            if (!initialized)
+            if (!Initialized)
                 Debug.LogError($"Cannot use SwapWindow method on uninitialized window '{SDL_GetWindowTitle(windowPointer)}'.");
-            else if (!supportsOpenGL)
+            else if (!SupportsOpenGL)
                 Debug.LogError("Cannot use SwapWindow method on OpenGL-incompatible"
                             + $" window '{SDL_GetWindowTitle(windowPointer)}'.");
             else SDL_GL_SwapWindow(windowPointer);
@@ -231,6 +230,6 @@ namespace Vectoray.Rendering
         /// 
         /// Also returns false if this window is not yet initialized.</returns>
         private bool CheckFlag(SDL_WindowFlags flag) =>
-            initialized ? (SDL_GetWindowFlags(windowPointer) & (uint)flag) != 0 : false;
+            Initialized && (SDL_GetWindowFlags(windowPointer) & (uint)flag) != 0;
     }
 }

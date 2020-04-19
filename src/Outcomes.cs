@@ -261,7 +261,6 @@ namespace Vectoray
 
     #region Option types
 
-    // TODO: Fix deconstruct method so None<T> doesn't take params
     // TODO: Remove Unwrap. Place it in a separate namespace?
     // TODO: Add static extensions class of some kind. Create an ext method to convert T to Some/None<T>.
     /// <summary>

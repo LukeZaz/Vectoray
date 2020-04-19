@@ -36,7 +36,7 @@ namespace Vectoray
 
         #endregion
 
-        static void Main(string[] args)
+        static void Main()
         {
             Debug.Log("Initializing...");
 
@@ -52,11 +52,10 @@ namespace Vectoray
                 mainWindow.Raise();
                 mainWindow.SwapWindow();
                 bool quitMainLoop = false;
-                SDL_Event sdlEvent;
 
                 while (!quitMainLoop)
                 {
-                    while (SDL_PollEvent(out sdlEvent) != 0)
+                    while (SDL_PollEvent(out SDL_Event sdlEvent) != 0)
                     {
                         switch (sdlEvent.type)
                         {
@@ -98,7 +97,7 @@ namespace Vectoray
 
                 if (windowSome.Unwrap().CreateRenderer() is Some<Renderer>(Renderer renderer))
                 {
-                    Debug.Log($"Renderer is current context: {renderer.isCurrentContext} "
+                    Debug.Log($"Renderer is current context: {renderer.IsCurrentContext} "
                             + $"(Pointer is {SDL_GL_GetCurrentContext()})");
                     return windowSome;
                 }
@@ -124,7 +123,7 @@ namespace Vectoray
         static void Quit()
         {
             Debug.Log($"GL error (if any) before quitting: {GL.GetError()}");
-            if (Debug.errorHasOccurred)
+            if (Debug.ErrorHasOccurred)
             {
                 Debug.Log("One or more errors have occurred; execution has paused before " +
                     "quitting to give time to read them. Press any key to continue.");

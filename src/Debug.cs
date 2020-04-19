@@ -32,7 +32,7 @@ namespace Vectoray
 {
     public static class Debug
     {
-        public static bool errorHasOccurred { get; private set; } = false;
+        public static bool ErrorHasOccurred { get; private set; } = false;
 
         /// <summary>
         /// Log a message to the console using Console.WriteLine.
@@ -80,7 +80,7 @@ namespace Vectoray
             object arg3 = null)
         {
             LogColored(message, ConsoleColor.Red, arg0, arg1, arg2, arg3);
-            errorHasOccurred = true;
+            ErrorHasOccurred = true;
         }
 
         /// <summary>

@@ -127,7 +127,7 @@ namespace Vectoray.Rendering.OpenGL
         /// While this may change, doing so will likely only affect newly-created
         /// OpenGL-compatible windows. See: https://wiki.libsdl.org/SDL_GLattr#OpenGL
         /// </summary>
-        public static bool configAttributesSet { get; private set; } = false;
+        public static bool ConfigAttributesSet { get; private set; } = false;
 
         #endregion
 
@@ -150,7 +150,7 @@ namespace Vectoray.Rendering.OpenGL
             SDL_GLprofile profileMask,
             params (SDL_GLattr attrib, int value)[] attributes)
         {
-            if (configAttributesSet)
+            if (ConfigAttributesSet)
             {
                 Debug.LogError("Cannot set global OpenGL configuration attributes when they have already been set.");
                 return;
@@ -164,7 +164,7 @@ namespace Vectoray.Rendering.OpenGL
             foreach ((SDL_GLattr attrib, int value) in attributes)
                 SetConfigAttribute(attrib, value);
 
-            configAttributesSet = true;
+            ConfigAttributesSet = true;
 
             static void SetConfigAttribute(SDL_GLattr attribute, int value)
             {
@@ -195,8 +195,7 @@ namespace Vectoray.Rendering.OpenGL
                 // but get a 24-bit one. Anything less than what you asked for *usually* causes a failure
                 // during context creation.
                 // See: https://wiki.libsdl.org/SDL_GLattr#OpenGL
-                int attribVal;
-                if (SDL_GL_GetAttribute(attribute, out attribVal) != 0)
+                if (SDL_GL_GetAttribute(attribute, out int attribVal) != 0)
                 {
                     Debug.LogError(
                         $"Failed to retrieve the value of OpenGL configuration attribute '{GetAttrName(attribute)}'"
