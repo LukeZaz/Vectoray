@@ -148,7 +148,7 @@ namespace Vectoray
         public static implicit operator Result<T, E>(Invalid<DummyResultType, E> invalid) =>
             new Invalid<T, E>(invalid.ErrorValue);
         public static implicit operator Result<T, E>(Valid<T, DummyErrorType> valid) =>
-            new Valid<T, E>(valid.UnwrapOr(default));
+            new Valid<T, E>(valid.Value);
 
         /// <summary>
         /// Attempt to unwrap this result and retrieve the value inside, or return `defaultValue`
@@ -186,19 +186,8 @@ namespace Vectoray
     public sealed class Valid<T, E> : Result<T, E> where E : Exception
     {
         private readonly T value;
-        private T Value
-        {
-            get
-            {
-                // An exception is thrown here because if you create an instance of Valid
-                // with a null inner value (despite it disallowing this in its constructor),
-                // then something's wrong.
-                if (value == null)
-                    throw new NullReferenceException(
-                        $"Inner value of {typeof(Valid<T, E>)} was retrieved, but was found to be null.");
-                else return value;
-            }
-        }
+        public T Value => value ?? throw new NullReferenceException(
+            $"Inner value of {typeof(Valid<T, E>)} was retrieved, but was found to be null.");
 
         /// <summary>
         /// Create a new `Valid` to wrap `value`.
@@ -260,9 +249,6 @@ namespace Vectoray
         private readonly E errorValue;
         public E ErrorValue => errorValue ?? throw new NullReferenceException(
                 $"Inner value of {typeof(Invalid<T, E>)} was retrieved, but was found to be null.");
-
-        public static implicit operator Invalid<T, E>(Invalid<DummyResultType, E> invalid) =>
-            new Invalid<T, E>(invalid.ErrorValue);
 
         /// <summary>
         /// Create a new `Invalid` to wrap `errorValue`.
