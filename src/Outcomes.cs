@@ -35,19 +35,6 @@ using System;
 
 namespace Vectoray
 {
-    // TODO: Like all the other 'unsafe' methods of unwrapping outcomes, this should be moved elsewhere so it
-    // requires a separate 'using', so as to discourage use.
-    // TODO: Unit testing.
-    /// <summary>
-    /// An exception that is thrown when an `Opt&lt;T&gt;` is unwrapped, but its value is `null` or `None`.
-    /// </summary>
-    public class EmptyUnwrapException : Exception
-    {
-        public EmptyUnwrapException() : base() { }
-        public EmptyUnwrapException(string message) : base(message) { }
-        public EmptyUnwrapException(string message, Exception inner) : base(message, inner) { }
-    }
-
     /// <summary>
     /// A helper class containing various extensions to make working with `Opt&lt;T&gt;`
     /// and `Result&lt;T, E&gt;` types easier.
@@ -64,6 +51,14 @@ namespace Vectoray
         public static Valid<T, E> Valid<T, E>(this T value) where E : Exception => new Valid<T, E>(value);
 
         /// <summary>
+        /// Create a new `Valid` which wraps this value and associates a dummy error type with it.
+        /// </summary>
+        /// <param name="value">The value to wrap.</param>
+        /// <typeparam name="T">The value's type.</typeparam>
+        /// <returns>A new `Valid&lt;T, E&gt; that contains the given value.</returns>
+        public static Valid<T, DummyErrorType> Valid<T>(this T value) => new Valid<T, DummyErrorType>(value);
+
+        /// <summary>
         /// Create a new `Invalid` which wraps this error and associates a success type with it.
         /// </summary>
         /// <param name="error">The error to wrap.</param>
@@ -71,6 +66,15 @@ namespace Vectoray
         /// <typeparam name="E">The error's type.</typeparam>
         /// <returns>A new `Invalid&lt;T, E&gt; that contains the given error.</returns>
         public static Invalid<T, E> Invalid<T, E>(this E error) where E : Exception => new Invalid<T, E>(error);
+
+        /// <summary>
+        /// Create a new `Invalid` which wraps this error and associates a dummy success type with it.
+        /// </summary>
+        /// <param name="error">The error to wrap.</param>
+        /// <typeparam name="E">The error's type.</typeparam>
+        /// <returns>A new `Invalid&lt;T, E&gt; that contains the given error.</returns>
+        public static Invalid<DummyResultType, E> Invalid<E>(this E error) where E : Exception =>
+            new Invalid<DummyResultType, E>(error);
 
         /// <summary>
         /// Create a new `Some` which wraps this value.
@@ -139,6 +143,12 @@ namespace Vectoray
         // an unexpected third class would only introduce confusion.
         #endregion
         private protected Result() { }
+
+        // Part of a solution to enable less verbose conversions using a dummy type as a middleman.
+        public static implicit operator Result<T, E>(Invalid<DummyResultType, E> invalid) =>
+            new Invalid<T, E>(invalid.ErrorValue);
+        public static implicit operator Result<T, E>(Valid<T, DummyErrorType> valid) =>
+            new Valid<T, E>(valid.UnwrapOr(default));
 
         /// <summary>
         /// Attempt to unwrap this result and retrieve the value inside, or return `defaultValue`
@@ -250,6 +260,9 @@ namespace Vectoray
         private readonly E errorValue;
         public E ErrorValue => errorValue ?? throw new NullReferenceException(
                 $"Inner value of {typeof(Invalid<T, E>)} was retrieved, but was found to be null.");
+
+        public static implicit operator Invalid<T, E>(Invalid<DummyResultType, E> invalid) =>
+            new Invalid<T, E>(invalid.ErrorValue);
 
         /// <summary>
         /// Create a new `Invalid` to wrap `errorValue`.
@@ -516,6 +529,37 @@ namespace Vectoray
     }
 
     #endregion
+
+    // TODO: Like all the other 'unsafe' methods of unwrapping outcomes, this should be moved elsewhere so it
+    // requires a separate 'using', so as to discourage use.
+    // TODO: Unit testing.
+    /// <summary>
+    /// An exception that is thrown when an `Opt&lt;T&gt;` is unwrapped, but its value is `null` or `None`.
+    /// </summary>
+    public class EmptyUnwrapException : Exception
+    {
+        public EmptyUnwrapException() : base() { }
+        public EmptyUnwrapException(string message) : base(message) { }
+        public EmptyUnwrapException(string message, Exception inner) : base(message, inner) { }
+    }
+
+    /// <summary>
+    /// A dummy class used to enable various conversion shortcuts for `Invalid`s by way
+    /// of taking the place of the unused success type.
+    /// </summary>
+    public sealed class DummyResultType
+    {
+        private DummyResultType() { }
+    }
+
+    /// <summary>
+    /// A dummy class used to enable various conversion shortcuts for `Valid`s by way
+    /// of taking the place of the unused error type.
+    /// </summary>
+    public sealed class DummyErrorType : Exception
+    {
+        private DummyErrorType() { }
+    }
 
     // Why yes, I did program in Rust for a while! Why do you ask?
 }
