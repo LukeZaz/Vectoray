@@ -36,12 +36,14 @@ namespace Vectoray
 
         #endregion
 
-        static void Main()
+        private static void Main()
         {
             Debug.Log("Initializing...");
 
             if (Initialize() is Some<Window>(Window mainWindow))
             {
+                Debug.Log($"Renderer is current context: {mainWindow.Renderer.IsCurrentContext} "
+                        + $"(Pointer is {SDL_GL_GetCurrentContext()})");
                 Debug.Log($"Initialization worked fine! Last reported OpenGL error was: {GL.GetError()}");
                 GL.LogConnectionInfo();
 
@@ -72,7 +74,7 @@ namespace Vectoray
             Quit();
         }
 
-        // TODO: This should return a result instead
+        // This doesn't return a result as it's top-level enough for it to directly handle errors itself.
         static Opt<Window> Initialize()
         {
             if (SDL_Init(SDL_INIT_VIDEO) != 0)
@@ -82,8 +84,7 @@ namespace Vectoray
                 return new None<Window>();
             }
 
-            // Internal methods already print error messages on failure, however, so only meager detail is needed.
-            if (Window.CreateWindow(
+            switch (Window.CreateWindow(
                 "OpenGL Test",
                 SDL_WINDOWPOS_UNDEFINED,
                 SDL_WINDOWPOS_UNDEFINED,
@@ -91,28 +92,20 @@ namespace Vectoray
                 screenHeight,
                 SDL_WindowFlags.SDL_WINDOW_SHOWN |
                 SDL_WindowFlags.SDL_WINDOW_OPENGL |
-                SDL_WindowFlags.SDL_WINDOW_RESIZABLE) is Some<Window> windowSome)
+                SDL_WindowFlags.SDL_WINDOW_RESIZABLE))
             {
-                GL.SetConfigAttributes(GLVersion.GL_4_6, SDL_GLprofile.SDL_GL_CONTEXT_PROFILE_CORE);
-
-                if (windowSome.Unwrap().CreateRenderer() is Some<Renderer>(Renderer renderer))
-                {
-                    Debug.Log($"Renderer is current context: {renderer.IsCurrentContext} "
-                            + $"(Pointer is {SDL_GL_GetCurrentContext()})");
-                    return windowSome;
-                }
-                else
-                {
-                    Debug.LogError("Initialization failed during Renderer creation!");
-                    // Technically unnecessary, but it ensures the window doesn't stick around wasting space.
-                    windowSome.Unwrap().Free();
-                    return new None<Window>();
-                }
-            }
-            else
-            {
-                Debug.LogError("Initialization failed during window creation!");
-                return new None<Window>();
+                case Valid<Window, Window.WindowCreationFailedException>(Window window):
+                    GL.SetConfigAttributes(GLVersion.GL_4_6, SDL_GLprofile.SDL_GL_CONTEXT_PROFILE_CORE);
+                    return window.CreateRenderer() switch
+                    {
+                        Valid<Renderer, Window.WindowException> _ => window.Some(),
+                        Invalid<Renderer, Window.WindowException> invalid => throw invalid.ErrorValue,
+                        _ => throw new InvalidOperationException("Unreachable code encountered."),
+                    };
+                case Invalid<Window, Window.WindowCreationFailedException> invalid:
+                    throw invalid.ErrorValue;
+                default:
+                    throw new InvalidOperationException("Unreachable code encountered.");
             }
         }
 
@@ -120,7 +113,7 @@ namespace Vectoray
         /// Prepares to shut down the program, quitting SDL and pausing the console to allow
         /// error messages to be read.
         /// </summary>
-        static void Quit()
+        private static void Quit()
         {
             Debug.Log($"GL error (if any) before quitting: {GL.GetError()}");
             if (Debug.ErrorHasOccurred)

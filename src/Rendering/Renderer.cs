@@ -85,39 +85,27 @@ namespace Vectoray.Rendering
         /// </summary>
         private Renderer(IntPtr context, IntPtr window) => (this.context, this.window) = (context, window);
 
-        // TODO: Result<T,E> here
         /// <summary>
         /// Create a new renderer using the given window and attributes.
         /// </summary>
         /// <param name="window">The window to create this renderer for.</param>
         /// <param name="attributes">The OpenGL attributes and the values to set them to for this renderer.</param>
         /// <returns>An option representing whether or not the renderer was successfully created.</returns>
-        public static Opt<Renderer> CreateRenderer(IntPtr window)
+        public static Result<Renderer, RendererException> CreateRenderer(IntPtr window)
         {
             if (!GL.ConfigAttributesSet)
-            {
-                Debug.LogError("Cannot create an OpenGL renderer before vital OpenGL attributes have been set.");
-                return new None<Renderer>();
-            }
+                return new GLAttributesNotSetException(
+                    "Cannot create an OpenGL renderer before vital OpenGL attributes have been set.")
+                    .Invalid<RendererException>();
 
             IntPtr context = SDL_GL_CreateContext(window);
             if (context == IntPtr.Zero)
-            {
-                Debug.LogError($"Failed to create OpenGL context during Renderer creation. SDL error: {SDL_GetError()}");
-                return new None<Renderer>();
-            }
+                return new ContextCreationFailedException(
+                    $"Failed to create OpenGL context during Renderer creation. SDL error: {SDL_GetError()}")
+                    .Invalid<RendererException>();
 
-            return new Renderer(context, window).Some();
+            return new Renderer(context, window).Valid();
         }
-
-        /// <summary>
-        /// Create a new renderer using the given window and attributes.
-        /// </summary>
-        /// <param name="window">The window to create this renderer for.</param>
-        /// <param name="attributes">The OpenGL attributes and the values to set them to for this renderer.</param>
-        /// <returns>An option representing whether or not the renderer was successfully created.</returns>
-        public static Opt<Renderer> CreateRenderer(Window window)
-            => window.CreateRenderer();
 
         ~Renderer()
         {
@@ -128,7 +116,6 @@ namespace Vectoray.Rendering
 
         #endregion
 
-        // TODO: Result<E> here.
         /// <summary>
         /// Set the VSync mode for this renderer.
         /// </summary>
@@ -169,5 +156,40 @@ namespace Vectoray.Rendering
             }
             else return true;
         }
+
+        #region Exception definitions
+
+        // TODO: Emmet snippets for these exceptions? Probably also see if there's a way to simplify
+        // their definitions.
+        /// <summary>
+        /// Base exception type used by this class for `Result` error types.
+        /// </summary>
+        public class RendererException : Exception
+        {
+            protected RendererException() : base() { }
+            protected RendererException(string message) : base(message) { }
+            protected RendererException(string message, Exception inner) : base(message, inner) { }
+        }
+
+        /// <summary>
+        /// An exception used to indicate that a function failed due to relevant OpenGL configuration
+        /// attributes not having been set.
+        /// </summary>
+        public class GLAttributesNotSetException : RendererException
+        {
+            public GLAttributesNotSetException(string message) : base(message) { }
+            public GLAttributesNotSetException(string message, Exception inner) : base(message, inner) { }
+        }
+
+        /// <summary>
+        /// An exception used to indicate that SDL2 has failed to create an OpenGL context.
+        /// </summary>
+        public class ContextCreationFailedException : RendererException
+        {
+            public ContextCreationFailedException(string message) : base(message) { }
+            public ContextCreationFailedException(string message, Exception inner) : base(message, inner) { }
+        }
+
+        #endregion
     }
 }

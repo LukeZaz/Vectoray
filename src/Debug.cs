@@ -20,11 +20,14 @@ using System;
 
 #region What to use for error handling, and when
 // TODO: Write something more expansive here probably
-// Exceptions: as a substitute for the lack of panic!(), otherwise never
+// Exceptions: as a substitute for the lack of panic!(), and as a base class for Result error types, otherwise never
 // Result<T, E>: For code that has multiple failure states, or for which any failure is unexpected and invalid
-// and should be handled.
+// and should be handled. (TODO: last part questionable; no [must_use] attribute in C#, how to deal with this?)
 // Opt<T>: For code that has one failure state and for which failures are expected and valid outcomes.
+// (e.g. user input errors)
 // Debug.LogError: As part and parcel of Result and Opt failures, to help document and trace problems via the console.
+// TODO: Above might not be necessary now since Result error types are exceptions, which *should* enable quality stack tracing.
+// Test this.
 // Debug.LogWarning: Same as LogError, but for less serious problems or things that might not even be problems.
 #endregion
 

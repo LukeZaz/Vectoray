@@ -108,7 +108,6 @@ namespace Vectoray.Rendering
         /// </summary>
         private Window(IntPtr windowPointer) => this.windowPointer = windowPointer;
 
-        // TODO: Once Results are implemented, this should return Result<Window, WindowError>.
         /// <summary>
         /// Create a window with the given values.
         /// </summary>
@@ -119,7 +118,7 @@ namespace Vectoray.Rendering
         /// <param name="h">The height of the window.</param>
         /// <param name="flags">SDL_WindowFlags to enable on this window.</param>
         /// <returns>An option representing whether or not window creation was successful.</returns>
-        public static Opt<Window> CreateWindow(
+        public static Result<Window, WindowCreationFailedException> CreateWindow(
             string title = "Untitled",
             int x = SDL_WINDOWPOS_UNDEFINED,
             int y = SDL_WINDOWPOS_UNDEFINED,
@@ -129,16 +128,14 @@ namespace Vectoray.Rendering
         {
             Window window = new Window(SDL_CreateWindow(title, x, y, w, h, flags));
             if (!window.Initialized)
-            {
-                Debug.LogError($"Failed to create window '{title}'! SDL error: {SDL_GetError()}");
-                return new None<Window>();
-            }
-            else return new Some<Window>(window);
+                return new WindowCreationFailedException(
+                    $"SDL2 failed to create window '{title}'! SDL error: {SDL_GetError()}").Invalid();
+            else return window.Valid();
         }
 
         /// <summary>
         /// Destroy this window. Does nothing if this window is not initialized.
-        /// Automatically called by this object's finalizer.
+        /// Automatically called by this window's finalizer.
         /// </summary>
         public void Free()
         {
@@ -156,33 +153,28 @@ namespace Vectoray.Rendering
 
         #region Rendering
 
-        // TODO: Result<T,E> here
         /// <summary>
         /// Create a new OpenGL-based renderer for this window.
         /// </summary>
         /// <returns>An option representing whether or not the Renderer was successfully created.</returns>
-        public Opt<Renderer> CreateRenderer()
+        public Result<Renderer, WindowException> CreateRenderer()
         {
             if (this.Renderer != null)
-            {
-                Debug.LogError("Cannot create an OpenGL context for a window that already has one.");
-                return new None<Renderer>();
-            }
+                return new RendererAlreadyExistsException(
+                    "Cannot create an OpenGL context for a window that already has one.").Invalid<WindowException>();
 
             if (!SupportsOpenGL)
-            {
-                Debug.LogError("Cannot create an OpenGL context for a window that does not support it.");
-                return new None<Renderer>();
-            }
+                return new OpenGLUnsupportedException(
+                    "Cannot create an OpenGL context for a window that does not support it.").Invalid<WindowException>();
 
-            // TODO: Once this is changed to a result, the error that this would return should be wrapped
-            // and returned instead of just a detail-lacking 'None' value.
-            if (Renderer.CreateRenderer(windowPointer) is Some<Renderer> some)
+            return Renderer.CreateRenderer(windowPointer) switch
             {
-                this.Renderer = some.Unwrap();
-                return some;
-            }
-            else return new None<Renderer>();
+                Valid<Renderer, Renderer.RendererException>(Renderer r) => (this.Renderer = r).Valid(),
+                Invalid<Renderer, Renderer.RendererException>(Renderer.RendererException e) =>
+                    new RendererCreationFailedException(e.Message, e).Invalid<WindowException>(),
+                _ => new RendererCreationFailedException("Unknown Renderer creation failure occurred.")
+                    .Invalid<WindowException>()
+            };
         }
 
         #endregion
@@ -231,5 +223,55 @@ namespace Vectoray.Rendering
         /// Also returns false if this window is not yet initialized.</returns>
         private bool CheckFlag(SDL_WindowFlags flag) =>
             Initialized && (SDL_GetWindowFlags(windowPointer) & (uint)flag) != 0;
+
+        #region Exception definitions
+
+        /// <summary>
+        /// Base exception type used by this class for `Result` error types.
+        /// </summary>
+        public class WindowException : Exception
+        {
+            protected WindowException() : base() { }
+            protected WindowException(string message) : base(message) { }
+            protected WindowException(string message, Exception inner) : base(message, inner) { }
+        }
+
+        /// <summary>
+        /// An exception used to indicate that SDL2 has failed to create a requested window.
+        /// </summary>
+        public sealed class WindowCreationFailedException : WindowException
+        {
+            public WindowCreationFailedException(string message) : base(message) { }
+            public WindowCreationFailedException(string message, Exception inner) : base(message, inner) { }
+        }
+
+        public sealed class RendererCreationFailedException : WindowException
+        {
+            public RendererCreationFailedException() : base() { }
+            public RendererCreationFailedException(string message) : base(message) { }
+            public RendererCreationFailedException(string message, Exception inner) : base(message, inner) { }
+        }
+
+        /// <summary>
+        /// An exception used to indicate that a renderer cannot be created due to one already being linked
+        /// to this window.
+        /// </summary>
+        public sealed class RendererAlreadyExistsException : WindowException
+        {
+            public RendererAlreadyExistsException(string message) : base(message) { }
+            public RendererAlreadyExistsException(string message, Exception inner) : base(message, inner) { }
+        }
+
+        /// <summary>
+        /// An exception used to indicate that an OpenGL-dependent function failed
+        /// due to a lack of OpenGL context support from the window.
+        /// </summary>
+        public sealed class OpenGLUnsupportedException : WindowException
+        {
+            public OpenGLUnsupportedException(string message) : base(message) { }
+            public OpenGLUnsupportedException(string message, Exception inner) : base(message, inner) { }
+        }
+
+        #endregion
     }
 }

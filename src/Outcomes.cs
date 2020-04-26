@@ -52,29 +52,33 @@ namespace Vectoray
 
         /// <summary>
         /// Create a new `Valid` which wraps this value and associates a dummy error type with it.
+        /// This can then be implicitly converted to any `Result` with a success type of `T`.
         /// </summary>
         /// <param name="value">The value to wrap.</param>
         /// <typeparam name="T">The value's type.</typeparam>
         /// <returns>A new `Valid&lt;T, E&gt; that contains the given value.</returns>
-        public static Valid<T, DummyErrorType> Valid<T>(this T value) => new Valid<T, DummyErrorType>(value);
+        public static Valid<T, DummyType> Valid<T>(this T value) => new Valid<T, DummyType>(value);
 
         /// <summary>
-        /// Create a new `Invalid` which wraps this error and associates a success type with it.
+        /// Create a new `Invalid` which wraps this error, maps it to a class it derives from,
+        /// and then associates a dummy success type with it.
         /// </summary>
         /// <param name="error">The error to wrap.</param>
-        /// <typeparam name="T">The success value type to associate.</typeparam>
-        /// <typeparam name="E">The error's type.</typeparam>
-        /// <returns>A new `Invalid&lt;T, E&gt; that contains the given error.</returns>
-        public static Invalid<T, E> Invalid<T, E>(this E error) where E : Exception => new Invalid<T, E>(error);
+        /// <typeparam name="E">The base class to upcast to.</typeparam>
+        /// <typeparam name="D">The error's type.</typeparam>
+        /// <returns>A new `Invalid&lt;T, E&gt; that contains the casted error.</returns>
+        public static Invalid<DummyType, E> Invalid<E, D>(this D error) where E : Exception where D : E =>
+            new Invalid<DummyType, E>(error);
 
         /// <summary>
         /// Create a new `Invalid` which wraps this error and associates a dummy success type with it.
+        /// This can then be implicitly converted to any `Result` with an error type of `E`.
         /// </summary>
         /// <param name="error">The error to wrap.</param>
         /// <typeparam name="E">The error's type.</typeparam>
         /// <returns>A new `Invalid&lt;T, E&gt; that contains the given error.</returns>
-        public static Invalid<DummyResultType, E> Invalid<E>(this E error) where E : Exception =>
-            new Invalid<DummyResultType, E>(error);
+        public static Invalid<DummyType, E> Invalid<E>(this E error) where E : Exception =>
+            new Invalid<DummyType, E>(error);
 
         /// <summary>
         /// Create a new `Some` which wraps this value.
@@ -145,10 +149,10 @@ namespace Vectoray
         private protected Result() { }
 
         // Part of a solution to enable less verbose conversions using a dummy type as a middleman.
-        public static implicit operator Result<T, E>(Invalid<DummyResultType, E> invalid) =>
-            new Invalid<T, E>(invalid.ErrorValue);
-        public static implicit operator Result<T, E>(Valid<T, DummyErrorType> valid) =>
+        public static implicit operator Result<T, E>(Valid<T, DummyType> valid) =>
             new Valid<T, E>(valid.Value);
+        public static implicit operator Result<T, E>(Invalid<DummyType, E> invalid) =>
+            new Invalid<T, E>(invalid.ErrorValue);
 
         /// <summary>
         /// Attempt to unwrap this result and retrieve the value inside, or return `defaultValue`
@@ -530,21 +534,12 @@ namespace Vectoray
     }
 
     /// <summary>
-    /// A dummy class used to enable various conversion shortcuts for `Invalid`s by way
-    /// of taking the place of the unused success type.
+    /// A dummy class used to enable various conversion shortcuts for `Invalid`s and `Valid`s by way
+    /// of taking the place of the unused success and error types respectively.
     /// </summary>
-    public sealed class DummyResultType
+    public sealed class DummyType : Exception
     {
-        private DummyResultType() { }
-    }
-
-    /// <summary>
-    /// A dummy class used to enable various conversion shortcuts for `Valid`s by way
-    /// of taking the place of the unused error type.
-    /// </summary>
-    public sealed class DummyErrorType : Exception
-    {
-        private DummyErrorType() { }
+        private DummyType() { }
     }
 
     // Why yes, I did program in Rust for a while! Why do you ask?
