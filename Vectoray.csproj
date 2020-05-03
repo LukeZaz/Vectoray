@@ -9,4 +9,9 @@
       <HintPath>lib/SDL2-CS.dll</HintPath>
     </Reference>
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="Shaders/**/*.glsl">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>

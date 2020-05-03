@@ -1,6 +1,6 @@
 #version 460
 
-in VS_Output
+in VSOutput
 {
     vec3 color;
 } input;
