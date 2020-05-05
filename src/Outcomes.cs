@@ -94,6 +94,33 @@ namespace Vectoray
         /// <typeparam name="T">The value's type.</typeparam>
         /// <returns>A new `None&lt;T&gt;`.</returns>
         public static None<T> None<T>(this T _) => new None<T>();
+
+        /// <summary>
+        /// Create a new `Some` wrapping this value, provided a given condition is true, and a new `None`
+        /// using it's type otherwise.
+        /// </summary>
+        /// <param name="value">The value to wrap if a Some&lt;T&gt; is returned.</param>
+        /// <param name="predicate">The condition to use to determine which Option type to create.</param>
+        /// <typeparam name="T">The value's type.</typeparam>
+        /// <returns>
+        /// A new Some&lt;T&gt; wrapping the given value if `predicate` returned true, or a new None&lt;T&gt; otherwise.
+        /// </returns>
+        public static Opt<T> SomeIf<T>(this T value, Func<bool> predicate) =>
+            predicate() ? value.Some() : (Opt<T>)value.None();
+
+        /// <summary>
+        /// Create a new `None` using this value's type provided a given condition is true,
+        /// and a new `Some` wrapping the value otherwise.
+        /// </summary>
+        /// <param name="value">The value to wrap if a Some&lt;T&gt; is returned.</param>
+        /// <param name="predicate">The condition to use to determine which Option type to create.</param>
+        /// <typeparam name="T">The value's type.</typeparam>
+        /// <returns>
+        /// A new None&lt;T&gt; if `predicate` returned true, or a new Some&lt;T&gt; wrapping
+        /// the given value otherwise.
+        /// </returns>
+        public static Opt<T> NoneIf<T>(this T value, Func<bool> predicate) =>
+            predicate() ? (Opt<T>)value.None() : value.Some();
     }
 
     #region Result types
@@ -299,7 +326,7 @@ namespace Vectoray
     /// however the recommended method is to use pattern matching, e.g.:
     /// ```
     /// Opt&lt;int&gt; example = new Some&lt;int&gt;(5);
-    /// if (example is Some&lt;int&gt;(int inner))
+    /// if (example is Some&lt;int&gt;(int inner)) / Evaluates to 'true'.
     /// Console.WriteLine(inner); // Prints '5'.
     /// ```
     /// </summary>
