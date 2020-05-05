@@ -100,7 +100,20 @@ namespace Vectoray
         /// using it's type otherwise.
         /// </summary>
         /// <param name="value">The value to wrap if a Some&lt;T&gt; is returned.</param>
-        /// <param name="predicate">The condition to use to determine which Option type to create.</param>
+        /// <param name="condition">The condition to use to determine which Option type to create.</param>
+        /// <typeparam name="T">The value's type.</typeparam>
+        /// <returns>
+        /// A new Some&lt;T&gt; wrapping the given value if `condition` returned true, or a new None&lt;T&gt; otherwise.
+        /// </returns>
+        public static Opt<T> SomeIf<T>(this T value, bool condition) =>
+            condition ? value.Some() : (Opt<T>)value.None();
+
+        /// <summary>
+        /// Create a new `Some` wrapping this value, provided a given function returned true, and a new `None`
+        /// using it's type otherwise.
+        /// </summary>
+        /// <param name="value">The value to wrap if a Some&lt;T&gt; is returned.</param>
+        /// <param name="predicate">The function to use to determine which Option type to create.</param>
         /// <typeparam name="T">The value's type.</typeparam>
         /// <returns>
         /// A new Some&lt;T&gt; wrapping the given value if `predicate` returned true, or a new None&lt;T&gt; otherwise.
@@ -109,11 +122,38 @@ namespace Vectoray
             predicate() ? value.Some() : (Opt<T>)value.None();
 
         /// <summary>
+        /// Create a new `Some` wrapping this value, provided a given function returned true, and a new `None`
+        /// using it's type otherwise.
+        /// </summary>
+        /// <param name="value">The value to wrap if a Some&lt;T&gt; is returned.</param>
+        /// <param name="predicate">The function to use to determine which Option type to create.</param>
+        /// <typeparam name="T">The value's type.</typeparam>
+        /// <returns>
+        /// A new Some&lt;T&gt; wrapping the given value if `predicate` returned true, or a new None&lt;T&gt; otherwise.
+        /// </returns>
+        public static Opt<T> SomeIf<T>(this T value, Func<T, bool> predicate) =>
+            predicate(value) ? value.Some() : (Opt<T>)value.None();
+
+        /// <summary>
         /// Create a new `None` using this value's type provided a given condition is true,
         /// and a new `Some` wrapping the value otherwise.
         /// </summary>
         /// <param name="value">The value to wrap if a Some&lt;T&gt; is returned.</param>
-        /// <param name="predicate">The condition to use to determine which Option type to create.</param>
+        /// <param name="condition">The condition to use to determine which Option type to create.</param>
+        /// <typeparam name="T">The value's type.</typeparam>
+        /// <returns>
+        /// A new None&lt;T&gt; if `condition` returned true, or a new Some&lt;T&gt; wrapping
+        /// the given value otherwise.
+        /// </returns>
+        public static Opt<T> NoneIf<T>(this T value, bool condition) =>
+            condition ? (Opt<T>)value.None() : value.Some();
+
+        /// <summary>
+        /// Create a new `None` using this value's type provided a given function returns true,
+        /// and a new `Some` wrapping the value otherwise.
+        /// </summary>
+        /// <param name="value">The value to wrap if a Some&lt;T&gt; is returned.</param>
+        /// <param name="predicate">The function to use to determine which Option type to create.</param>
         /// <typeparam name="T">The value's type.</typeparam>
         /// <returns>
         /// A new None&lt;T&gt; if `predicate` returned true, or a new Some&lt;T&gt; wrapping
@@ -121,6 +161,20 @@ namespace Vectoray
         /// </returns>
         public static Opt<T> NoneIf<T>(this T value, Func<bool> predicate) =>
             predicate() ? (Opt<T>)value.None() : value.Some();
+
+        /// <summary>
+        /// Create a new `None` using this value's type provided a given function returns true,
+        /// and a new `Some` wrapping the value otherwise.
+        /// </summary>
+        /// <param name="value">The value to wrap if a Some&lt;T&gt; is returned.</param>
+        /// <param name="predicate">The function to use to determine which Option type to create.</param>
+        /// <typeparam name="T">The value's type.</typeparam>
+        /// <returns>
+        /// A new None&lt;T&gt; if `predicate` returned true, or a new Some&lt;T&gt; wrapping
+        /// the given value otherwise.
+        /// </returns>
+        public static Opt<T> NoneIf<T>(this T value, Func<T, bool> predicate) =>
+            predicate(value) ? (Opt<T>)value.None() : value.Some();
     }
 
     #region Result types
