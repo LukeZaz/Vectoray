@@ -23,19 +23,10 @@ using System.Runtime.InteropServices;
 using static SDL2.SDL;
 using static Vectoray.Extensions;
 
+// TODO: Split this up into several partial classes/files
 namespace Vectoray.Rendering.OpenGL
 {
-    /// <summary>
-    /// An exception thrown whenever setting the value of a vital OpenGL configuration attribute has failed.
-    /// </summary>
-    public class VitalAttributeNotSetException : Exception
-    {
-        public VitalAttributeNotSetException() : base() { }
-        public VitalAttributeNotSetException(string message) : base(message) { }
-        public VitalAttributeNotSetException(string message, Exception inner) : base(message, inner) { }
-    }
-
-    #region Type & enum declaration
+    #region Enum declaration
 
     // TODO: Mark versions as supported/unsupported by the engine as a whole. Also decide on what to/to not support and why.
     // TODO: Determine what 'supporting' an OpenGL version would entail.
@@ -281,6 +272,10 @@ namespace Vectoray.Rendering.OpenGL
         /// <summary>
         /// Get a string representing an aspect of the current OpenGL connection.
         /// </summary>
+        /// <remarks>
+        /// Using this with GL_VENDOR and GL_RENDERER together can be useful for identifying a unique platform,
+        /// as they do not change from release to release.
+        /// </remarks>
         /// <param name="name">
         /// Specifies a symbolic constant, one of GL_VENDOR, GL_RENDERER, GL_VERSION, or GL_SHADING_LANGUAGE_VERSION.
         /// </param>
@@ -289,7 +284,7 @@ namespace Vectoray.Rendering.OpenGL
         {
             if (name != GLConnectionInfo.EXTENSIONS) return Marshal.PtrToStringAnsi(_glGetString(name));
             else Debug.LogError("Cannot read a GL_EXTENSIONS string with 'GetString(GLConnectionInfo name)'. "
-                              + "(Did you mean to use 'GetString(int index)'?)");
+                              + "(Did you mean to use 'GetExtensionString(int index)'?)");
             return string.Empty;
         }
 
@@ -298,15 +293,23 @@ namespace Vectoray.Rendering.OpenGL
         /// </summary>
         /// <param name="index">The index of the string to return.</param>
         /// <returns>The string at `index`.</returns>
-        public static string GetExtensionString(int index) =>
-            Marshal.PtrToStringAnsi(_glGetStringi(GLConnectionInfo.EXTENSIONS, index));
+        public static Opt<string> GetExtensionString(int index)
+        {
+            string str = Marshal.PtrToStringAnsi(_glGetStringi(GLConnectionInfo.EXTENSIONS, index));
+            if (GetError() == GLErrorCode.INVALID_VALUE)
+            {
+                Debug.LogError("glGetStringi likely given out-of-range index value; encountered `GL_INVALID_VALUE` error.");
+                return str.None();
+            }
+            else return str.Some();
+        }
 
         /// <summary>
         /// Logs all non-extension OpenGL connection information to the console.
         /// </summary>
         public static void LogConnectionInfo()
         {
-            Debug.LogColored("<| OpenGL Connection Information |>", ConsoleColor.White);
+            Debug.LogColored("<| OpenGL Connection Information", ConsoleColor.White);
             Debug.Log(
                 $" | Vendor: {GL.GetString(GLConnectionInfo.VENDOR)}\n"
               + $" | Renderer: {GL.GetString(GLConnectionInfo.RENDERER)}\n"
@@ -314,6 +317,118 @@ namespace Vectoray.Rendering.OpenGL
               + $"<| GLSL version: {GL.GetString(GLConnectionInfo.SHADING_LANGUAGE_VERSION)}"
             );
         }
+
+        #endregion
+
+        #region Shaders & Programs
+
+        /// <summary>
+        /// Create a new OpenGL shader object and get its ID.
+        /// </summary>
+        /// <param name="type">The type of shader to create.</param>
+        /// <returns>A new `Some` containing the shader object ID if creation was successful; `None` otherwise.</returns>
+        public static Opt<uint> CreateShader(GLShaderType type) =>
+            _glCreateShader(type)
+                .SomeIf(x => x != 0)
+                .LogErrorIfNone($"glCreateShader failed and returned 0. Last reported OpenGL error: {GetError()}");
+
+        /// <summary>
+        /// Sets an OpenGL shader object's source code, replacing any already associated.
+        /// When done, this will also check for an unexpected OpenGL error and log it if found.
+        /// </summary>
+        /// <param name="shader">The shader to set the source of.</param>
+        /// <param name="sources">An array of strings containing the source code to assign to the shader.</param>
+        public static void SetShaderSource(uint shader, string[] sources)
+        {
+            if (!IsShader(shader))
+            {
+                Debug.LogError($"Cannot set shader source of object '{shader}', as it is not an OpenGL shader object.");
+                return;
+            }
+
+            _glShaderSource(shader, (uint)sources.Length, sources, sources.Select(x => x.Length).ToArray());
+            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while setting shader source. "
+                                      + "This should be impossible; perhaps an earlier error went uncaught?");
+        }
+
+        /// <summary>
+        /// Compile a given OpenGL shader's source code.
+        /// When done, this will also check for an unexpected OpenGL error and log it if found.
+        /// </summary>
+        /// <param name="shader">The shader to compile.</param>
+        public static void CompileShader(uint shader)
+        {
+            if (!IsShader(shader))
+            {
+                Debug.LogError($"Cannot compile shader source of object '{shader}', as it is not an OpenGL shader object.");
+                return;
+            }
+
+            _glCompileShader(shader);
+            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while compiling a shader. "
+                                      + "This should be impossible; perhaps an earlier error went uncaught?");
+        }
+
+        /// <summary>
+        /// Get a parameter from an OpenGL shader object.
+        /// When done, this will also check for an unexpected OpenGL error and log it if found.
+        /// </summary>
+        /// <param name="shader">The shader to query.</param>
+        /// <param name="param">The parameter to query.</param>
+        /// <returns>
+        /// `None` if the given ID did not represent an OpenGL shader, or a `Some` containing the retrieved value otherwise.
+        /// </returns>
+        public static Opt<int> GetShaderParam(uint shader, GLShaderObjectParams param)
+        {
+            if (!IsShader(shader))
+            {
+                Debug.LogError($"Cannot get shader parameter of object '{shader}', as it is not an OpenGL shader object.");
+                return 0.None();
+            }
+
+            _glGetShaderiv(shader, param, out int value);
+            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while querying a shader parameter. "
+                                      + "This should be impossible; perhaps an earlier error went uncaught?");
+            return value.Some();
+        }
+
+        /// <summary>
+        /// Get the information log for a given OpenGL shader object, which details the outcome of its compilation.
+        /// When done, this will also check for an unexpected OpenGL error and log it if found.
+        /// </summary>
+        /// <param name="shader">The shader object to get the information log of.</param>
+        /// <returns>
+        /// `None` if the given ID did not represent an OpenGL shader,
+        /// or a `Some` containing the retrieved information log otherwise.
+        /// </returns>
+        public static Opt<string> GetShaderInfoLog(uint shader)
+        {
+            if (!IsShader(shader))
+            {
+                Debug.LogError($"Cannot retrieve shader info log of object '{shader}', as it is not an OpenGL shader object.");
+                return "".None();
+            }
+
+            _glGetShaderiv(shader, GLShaderObjectParams.INFO_LOG_LENGTH, out int value);
+            _glGetShaderInfoLog(shader, (uint)value, out _, out string infoLog);
+            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while getting a shader's info log. "
+                                  + "This should be impossible; perhaps an earlier error went uncaught?");
+            return infoLog.Some();
+        }
+
+        public static void DeleteShader(uint shader)
+        {
+            if (!IsShader(shader)) return;
+            _glDeleteShader(shader);
+        }
+
+        /// <summary>
+        /// Checks whether a given OpenGL object is a shader.
+        /// </summary>
+        /// <param name="objectId">The OpenGL object ID to check. If this is zero,
+        /// this function will *always* return false.</param>
+        /// <returns>Whether or not the OpenGL object was a shader.</returns>
+        public static bool IsShader(uint objectId) => _glIsShader(objectId);
 
         #endregion
 
@@ -372,6 +487,43 @@ namespace Vectoray.Rendering.OpenGL
 
         #endregion
 
+        #region Shaders & Programs
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate uint glCreateShader(GLShaderType type);
+        private static readonly glCreateShader _glCreateShader = GetDelegate<glCreateShader>();
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glShaderSource(uint shader, uint count, string[] strings, int[] length);
+        private static readonly glShaderSource _glShaderSource = GetDelegate<glShaderSource>();
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glCompileShader(uint shader);
+        private static readonly glCompileShader _glCompileShader = GetDelegate<glCompileShader>();
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glGetShaderiv(uint shader, GLShaderObjectParams pname, out int @params);
+        private static readonly glGetShaderiv _glGetShaderiv = GetDelegate<glGetShaderiv>();
+
+        // Previous versions of this program (prior to the total rewrite) used StdCall for most OpenGL functions,
+        // and ended up having to use [MarshalAs(UnmanagedType.LPStr)] and [Out()] on the infoLog parameter.
+        // Cdecl should prevent MarshalAs or StringBuilder from being necessary (citation needed),
+        // TODO: test the above?
+        // and [Out()] is effectively equivalent to just "out".
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glGetShaderInfoLog(uint shader, uint maxLength, out uint length, out string infoLog);
+        private static readonly glGetShaderInfoLog _glGetShaderInfoLog = GetDelegate<glGetShaderInfoLog>();
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glDeleteShader(uint shader);
+        private static readonly glDeleteShader _glDeleteShader = GetDelegate<glDeleteShader>();
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate bool glIsShader(uint shader);
+        private static readonly glIsShader _glIsShader = GetDelegate<glIsShader>();
+
+        #endregion
+
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void glClear(GLClearMask mask);
         private static readonly glClear _glClear = GetDelegate<glClear>();
@@ -382,4 +534,18 @@ namespace Vectoray.Rendering.OpenGL
 
         #endregion
     }
+
+    #region Exception declaration
+
+    /// <summary>
+    /// An exception thrown whenever setting the value of a vital OpenGL configuration attribute has failed.
+    /// </summary>
+    public class VitalAttributeNotSetException : Exception
+    {
+        public VitalAttributeNotSetException() : base() { }
+        public VitalAttributeNotSetException(string message) : base(message) { }
+        public VitalAttributeNotSetException(string message, Exception inner) : base(message, inner) { }
+    }
+
+    #endregion
 }
