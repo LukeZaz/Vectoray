@@ -10,7 +10,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Shaders/**/*.glsl">
+    <Content Include="shaders/**/*.glsl">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

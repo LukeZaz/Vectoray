@@ -21,6 +21,8 @@ using Vectoray.Rendering.OpenGL;
 
 using static SDL2.SDL;
 
+// TODO: Support for debugging contexts/output.
+// See: https://www.khronos.org/opengl/wiki/Debug_Output
 namespace Vectoray.Rendering
 {
     /// <summary>
@@ -162,7 +164,7 @@ namespace Vectoray.Rendering
         // TODO: Emmet snippets for these exceptions? Probably also see if there's a way to simplify
         // their definitions.
         /// <summary>
-        /// Base exception type used by this class for `Result` error types.
+        /// Base exception type used by the `Renderer` class for `Result` error types.
         /// </summary>
         public class RendererException : Exception
         {

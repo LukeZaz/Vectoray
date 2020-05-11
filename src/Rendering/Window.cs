@@ -227,7 +227,7 @@ namespace Vectoray.Rendering
         #region Exception definitions
 
         /// <summary>
-        /// Base exception type used by this class for `Result` error types.
+        /// Base exception type used by the `Window` class for `Result` error types.
         /// </summary>
         public class WindowException : Exception
         {
