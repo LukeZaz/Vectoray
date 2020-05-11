@@ -37,6 +37,10 @@ namespace Vectoray
     {
         public static bool ErrorHasOccurred { get; private set; } = false;
 
+        // TODO: Can result in FormatExceptions if message is an interpolated string for which
+        // one of the interpolated values is itself a string that contains curly brackets.
+        // Delegates might solve this?
+        // see https://stackoverflow.com/questions/6088567/creating-an-alias-for-a-function-name-in-c-sharp
         /// <summary>
         /// Log a message to the console using Console.WriteLine.
         /// </summary>
@@ -53,7 +57,7 @@ namespace Vectoray
             object arg3 = null) => Console.WriteLine(message, arg0, arg1, arg2, arg3);
 
         /// <summary>
-        /// Log a yellow warning message to the console using Console.WriteLine.
+        /// Log a yellow warning message to the console using `Debug.LogColored`.
         /// </summary>
         /// <param name="message">The message to print.</param>
         /// <param name="arg0">First argument.</param>
@@ -68,7 +72,7 @@ namespace Vectoray
             object arg3 = null) => LogColored(message, ConsoleColor.Yellow, arg0, arg1, arg2, arg3);
 
         /// <summary>
-        /// Log a red error message to the console using Console.WriteLine.
+        /// Log a red error message to the console using `Debug.LogColored`.
         /// </summary>
         /// <param name="message">The message to print.</param>
         /// <param name="arg0">First argument.</param>
@@ -87,7 +91,7 @@ namespace Vectoray
         }
 
         /// <summary>
-        /// Log a message to the console using WriteLine and a given foreground color.
+        /// Log a message to the console using `Debug.Log` and a given foreground color.
         /// </summary>
         /// <param name="message">The message to print.</param>
         /// <param name="color">The foreground color to use.</param>
@@ -104,8 +108,61 @@ namespace Vectoray
             object arg3 = null)
         {
             Console.ForegroundColor = color;
-            Console.WriteLine(message, arg0, arg1, arg2, arg3);
+            Debug.Log(message, arg0, arg1, arg2, arg3);
             Console.ResetColor();
         }
+
+        #region Extensions
+
+        /// <summary>
+        /// Logs a red error message using `Debug.LogError` if `value` is a `None&lt;T&gt;`, then
+        /// returns said value for further use.
+        /// </summary>
+        /// <param name="value">The value to check.</param>
+        /// <param name="message">The message to print.</param>
+        /// <param name="arg0">First argument.</param>
+        /// <param name="arg1">Second argument.</param>
+        /// <param name="arg2">Third argument.</param>
+        /// <param name="arg3">Fourth argument.</param>
+        /// <typeparam name="T">The value's type.</typeparam>
+        /// <returns>The given value.</returns>
+        public static Opt<T> LogErrorIfNone<T>(
+            this Opt<T> value,
+            string message,
+            object arg0 = null,
+            object arg1 = null,
+            object arg2 = null,
+            object arg3 = null)
+        {
+            if (value is None<T>) LogError(message, arg0, arg1, arg2, arg3);
+            return value;
+        }
+
+        /// <summary>
+        /// Logs a provided error message to the console if this OpenGL error code is anything
+        /// except `GLErrorCode.NO_ERROR`.
+        /// </summary>
+        /// <param name="error">The OpenGL error code to check.</param>
+        /// <param name="messageProvider">
+        /// The function that provides the message to log. The error code will be passed to this so it can be used
+        /// in the error message.
+        /// </param>
+        /// <param name="arg0">First argument.</param>
+        /// <param name="arg1">Second argument.</param>
+        /// <param name="arg2">Third argument.</param>
+        /// <param name="arg3">Fourth argument.</param>
+        public static void LogIfError(
+            this Rendering.OpenGL.GLErrorCode error,
+            Func<Rendering.OpenGL.GLErrorCode, string> messageProvider,
+            object arg0 = null,
+            object arg1 = null,
+            object arg2 = null,
+            object arg3 = null)
+        {
+            if (error != Rendering.OpenGL.GLErrorCode.NO_ERROR)
+                LogError(messageProvider(error), arg0, arg1, arg2, arg3);
+        }
+
+        #endregion
     }
 }
