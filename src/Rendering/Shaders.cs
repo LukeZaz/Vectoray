@@ -30,9 +30,9 @@ namespace Vectoray.Rendering.OpenGL
     }
 
     /// <summary>
-    /// An enum of the various OpenGL Shader Object parameters, used for GetShaderiv.
+    /// An enum of the various OpenGL Shader Object parameters, used for GetShaderParam.
     /// </summary>
-    public enum GLShaderObjectParams
+    public enum ShaderParams
     {
         SHADER_TYPE = 0x8B4F,
         DELETE_STATUS = 0x8B80,
@@ -42,12 +42,43 @@ namespace Vectoray.Rendering.OpenGL
     }
 
     /// <summary>
+    /// An enum of the various OpenGL Program Object parameters, used for GetProgramParam.
+    /// </summary>
+    public enum ProgramParams
+    {
+        COMPUTE_GROUP_WORK_SIZE = 0x8267,
+        PROGRAM_BINARY_LENGTH = 0x8741,
+        GEOMETRY_VERTICES_OUT = 0x8916,
+        GEOMETRY_INPUT_TYPE = 0x8917,
+        GEOMETRY_OUTPUT_TYPE = 0x8918,
+        ACTIVE_UNIFORM_BLOCK_MAX_NAME_LENGTH = 0x8A35,
+        ACTIVE_UNIFORM_BLOCKS = 0x8A36,
+        DELETE_STATUS = 0x8B80,
+        COMPILE_STATUS = 0x8B81,
+        LINK_STATUS = 0x8B82,
+        VALIDATE_STATUS = 0x8B83,
+        INFO_LOG_LENGTH = 0x8B84,
+        ATTACHED_SHADERS = 0x8B85,
+        ACTIVE_UNIFORMS = 0x8B86,
+        ACTIVE_UNIFORM_MAX_LENGTH = 0x8B87,
+        ACTIVE_ATTRIBUTES = 0x8B89,
+        ACTIVE_ATTRIBUTE_MAX_LENGTH = 0x8B8A,
+        TRANSFORM_FEEDBACK_VARYING_MAX_LENGTH = 0x8C76,
+        TRANSFORM_FEEDBACK_BUFFER_MODE = 0x8C7F,
+        TRANSFORM_FEEDBACK_VARYINGS = 0x8C83,
+        ACTIVE_ATOMIC_COUNTER_BUFFERS = 0x92D9
+    }
+
+    /// <summary>
     /// A wrapper for an OpenGL shader object.
     /// </summary>
     public class Shader
     {
         #region Variable & property declaration
 
+        /// <summary>
+        /// The OpenGL identifier for this shader object.
+        /// </summary>
         private readonly uint id;
 
         /// <summary>
@@ -72,7 +103,7 @@ namespace Vectoray.Rendering.OpenGL
         /// </returns>
         public bool IsUsable =>
             GL.IsShader(id) &&
-            GL.GetShaderParam(id, GLShaderObjectParams.DELETE_STATUS) is Some<int>(int x) &&
+            GL.GetShaderParam(id, ShaderParams.DELETE_STATUS) is Some<int>(int x) &&
             x == 0;
 
         #endregion
@@ -99,7 +130,7 @@ namespace Vectoray.Rendering.OpenGL
 
                 // The 'is' check here is for deconstruction; the method only returns None if the object id
                 // doesn't represent a shader object, and we can be pretty certain that won't happen.
-                if (GL.GetShaderParam(instance.id, GLShaderObjectParams.COMPILE_STATUS) is Some<int>(int x) && x == 0)
+                if (GL.GetShaderParam(instance.id, ShaderParams.COMPILE_STATUS) is Some<int>(int x) && x == 0)
                 {
                     // Same deal for the 'is' check here.
                     if (GL.GetShaderInfoLog(instance.id) is Some<string>(string message))
@@ -110,7 +141,7 @@ namespace Vectoray.Rendering.OpenGL
                 else return instance.Valid();
             }
             return new ShaderCreationFailedException(
-                "Failed to create OpenGL shader object for GLShader instance.")
+                "Failed to create OpenGL shader object for Shader instance.")
                 .Invalid<ShaderException>();
         }
 
@@ -127,8 +158,89 @@ namespace Vectoray.Rendering.OpenGL
     /// </summary>
     public class ShaderProgram
     {
-        // TODO: This class.
+        /// <summary>
+        /// The OpenGL identifier for this program object.
+        /// </summary>
+        private readonly uint id;
+
+        /// <summary>
+        /// Gets the ID of the OpenGL program object this represents, if it's usable;
+        /// i.e., the ID represents an OpenGL program object *and* said program object is not marked for deletion.
+        /// </summary>
+        /// <returns>A `Some` containing the ID if the OpenGL program object was usable, or `None` otherwise.</returns>
+        public Opt<uint> ID => IsUsable ? id.Some() : (Opt<uint>)new None<uint>();
+
+        /// <summary>
+        /// Whether or not this OpenGL program is usable;
+        /// i.e., the ID represents an OpenGL program object *and* said program object is not marked for deletion.
+        /// </summary>
+        /// <returns>
+        /// Whether or not this program both has an ID that represents a valid OpenGL program object,
+        /// *and* said program object is not marked for deletion.
+        /// </returns>
+        public bool IsUsable =>
+            GL.IsProgram(id) &&
+            GL.GetProgramParam(id, ProgramParams.DELETE_STATUS) is Some<int>(int x) &&
+            x == 0;
+
+        private ShaderProgram(uint id) => this.id = id;
+
+        /// <summary>
+        /// Creates a new shader program using the given shaders.
+        /// </summary>
+        /// <param name="shaders">An array of shaders to be attached to this program.</param>
+        /// <returns>
+        /// A `Valid` containing a new `ShaderProgram` if successful, or an `Invalid` containing an error if one occurred.
+        /// </returns>
+        public static Result<ShaderProgram, ShaderProgramException> CreateNew(Shader[] shaders)
+        {
+            if (GL.CreateProgram() is Some<uint>(uint programId))
+            {
+                ShaderProgram instance = new ShaderProgram(programId);
+                foreach (Shader shader in shaders)
+                {
+                    if (shader.ID is Some<uint>(uint shaderId))
+                        GL.AttachShader(programId, shaderId);
+                    else
+                    {
+                        GL.DeleteProgram(programId);
+                        return new ShaderNotUsableException(
+                            "Failed to create OpenGL shader program as one of the given shaders was not usable.")
+                            .Invalid<ShaderProgramException>();
+                    }
+                }
+
+                GL.LinkProgram(programId);
+                // The 'is' check here is for deconstruction; the method only returns None if the object id
+                // doesn't represent a shader object, and we can be pretty certain that won't happen.
+                if (GL.GetProgramParam(instance.id, ProgramParams.LINK_STATUS) is Some<int>(int x) && x == 0)
+                {
+                    // Same deal for the 'is' check here.
+                    if (GL.GetShaderInfoLog(instance.id) is Some<string>(string message))
+                        return new ShaderProgramCreationFailedException(
+                            $"Failed to link OpenGL program '{instance.id}'. Info log: {message}")
+                            .Invalid<ShaderProgramException>();
+                }
+
+                foreach (Shader shader in shaders)
+                {
+                    if (shader.ID is Some<uint>(uint shaderId))
+                        GL.DetachShader(programId, shaderId);
+                }
+                return instance.Valid();
+            }
+            return new ShaderProgramCreationFailedException(
+                "Failed to create OpenGL shader object for GLShader instance.")
+                .Invalid<ShaderProgramException>();
+        }
+
+        ~ShaderProgram()
+        {
+            if (IsUsable) GL.DeleteProgram(id);
+        }
     }
+
+    #region Exception definitions
 
     /// <summary>
     /// Base exception type used by the `Shader` class for `Result` error types.
@@ -157,4 +269,28 @@ namespace Vectoray.Rendering.OpenGL
         public ShaderCompilationFailedException(string message) : base(message) { }
         public ShaderCompilationFailedException(string message, Exception inner) : base(message, inner) { }
     }
+
+    /// <summary>
+    /// Base exception type used by the `ShaderProgram` class for `Result` error types.
+    /// </summary>
+    public class ShaderProgramException : Exception
+    {
+        protected ShaderProgramException() : base() { }
+        protected ShaderProgramException(string message) : base(message) { }
+        protected ShaderProgramException(string message, Exception inner) : base(message, inner) { }
+    }
+
+    public class ShaderNotUsableException : ShaderProgramException
+    {
+        public ShaderNotUsableException(string message) : base(message) { }
+        public ShaderNotUsableException(string message, Exception inner) : base(message, inner) { }
+    }
+
+    public class ShaderProgramCreationFailedException : ShaderProgramException
+    {
+        public ShaderProgramCreationFailedException(string message) : base(message) { }
+        public ShaderProgramCreationFailedException(string message, Exception inner) : base(message, inner) { }
+    }
+
+    #endregion
 }

@@ -152,14 +152,14 @@ namespace Vectoray
         /// <param name="arg2">Third argument.</param>
         /// <param name="arg3">Fourth argument.</param>
         public static void LogIfError(
-            this Rendering.OpenGL.GLErrorCode error,
-            Func<Rendering.OpenGL.GLErrorCode, string> messageProvider,
+            this Rendering.OpenGL.ErrorCode error,
+            Func<Rendering.OpenGL.ErrorCode, string> messageProvider,
             object arg0 = null,
             object arg1 = null,
             object arg2 = null,
             object arg3 = null)
         {
-            if (error != Rendering.OpenGL.GLErrorCode.NO_ERROR)
+            if (error != Rendering.OpenGL.ErrorCode.NO_ERROR)
                 LogError(messageProvider(error), arg0, arg1, arg2, arg3);
         }
 

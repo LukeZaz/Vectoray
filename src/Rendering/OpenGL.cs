@@ -64,7 +64,7 @@ namespace Vectoray.Rendering.OpenGL
     /// <summary>
     /// An enum of the seven OpenGL error flags.
     /// </summary>
-    public enum GLErrorCode
+    public enum ErrorCode
     {
         NO_ERROR = 0,
         INVALID_ENUM = 0x0500,
@@ -257,7 +257,7 @@ namespace Vectoray.Rendering.OpenGL
         /// Will not affect any flags if no errors have been recorded.
         /// </summary>
         /// <returns>An OpenGL enum constant representing a type of error that has been recorded at least once.</returns>
-        public static GLErrorCode GetError() => _glGetError();
+        public static ErrorCode GetError() => _glGetError();
 
         /// <summary>
         /// Get the values of and reset all OpenGL error flags that have recorded an error.
@@ -266,8 +266,8 @@ namespace Vectoray.Rendering.OpenGL
         /// <returns>
         /// An array of OpenGL enum constants representing which types of errors have been recorded at least once.
         /// </returns>
-        public static GLErrorCode[] GetAllErrors() =>
-            Enumerable.Range(0, GL_ERROR_TYPES).Select(_ => GetError()).Where(e => e != GLErrorCode.NO_ERROR).ToArray();
+        public static ErrorCode[] GetAllErrors() =>
+            Enumerable.Range(0, GL_ERROR_TYPES).Select(_ => GetError()).Where(e => e != ErrorCode.NO_ERROR).ToArray();
 
         /// <summary>
         /// Get a string representing an aspect of the current OpenGL connection.
@@ -296,7 +296,7 @@ namespace Vectoray.Rendering.OpenGL
         public static Opt<string> GetExtensionString(int index)
         {
             string str = Marshal.PtrToStringAnsi(_glGetStringi(GLConnectionInfo.EXTENSIONS, index));
-            if (GetError() == GLErrorCode.INVALID_VALUE)
+            if (GetError() == ErrorCode.INVALID_VALUE)
             {
                 Debug.LogError("glGetStringi likely given out-of-range index value; encountered `GL_INVALID_VALUE` error.");
                 return str.None();
@@ -320,7 +320,7 @@ namespace Vectoray.Rendering.OpenGL
 
         #endregion
 
-        #region Shaders & Programs
+        #region Shaders
 
         /// <summary>
         /// Create a new OpenGL shader object and get its ID.
@@ -378,7 +378,7 @@ namespace Vectoray.Rendering.OpenGL
         /// <returns>
         /// `None` if the given ID did not represent an OpenGL shader, or a `Some` containing the retrieved value otherwise.
         /// </returns>
-        public static Opt<int> GetShaderParam(uint shader, GLShaderObjectParams param)
+        public static Opt<int> GetShaderParam(uint shader, ShaderParams param)
         {
             if (!IsShader(shader))
             {
@@ -387,7 +387,7 @@ namespace Vectoray.Rendering.OpenGL
             }
 
             _glGetShaderiv(shader, param, out int value);
-            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while querying a shader parameter. "
+            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while querying shader parameter `{param}`. "
                                       + "This should be impossible; perhaps an earlier error went uncaught?");
             return value.Some();
         }
@@ -409,13 +409,77 @@ namespace Vectoray.Rendering.OpenGL
                 return "".None();
             }
 
-            _glGetShaderiv(shader, GLShaderObjectParams.INFO_LOG_LENGTH, out int value);
+            _glGetShaderiv(shader, ShaderParams.INFO_LOG_LENGTH, out int value);
             _glGetShaderInfoLog(shader, (uint)value, out _, out string infoLog);
             GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while getting a shader's info log. "
                                   + "This should be impossible; perhaps an earlier error went uncaught?");
             return infoLog.Some();
         }
 
+        /// <summary>
+        /// Attaches an OpenGL shader object to a given OpenGL program.
+        /// </summary>
+        /// <param name="program">The program object to attach the shader to.</param>
+        /// <param name="shader">The shader object to attach.</param>
+        public static void AttachShader(uint program, uint shader)
+        {
+            if (!IsProgram(program))
+            {
+                Debug.LogError($"Cannot attach a shader to object '{program}' as it is not an OpenGL program object.");
+                return;
+            }
+            else if (!IsShader(shader))
+            {
+                Debug.LogError($"Cannot attach object '{shader}' to a program as it is not an OpenGL shader object.");
+                return;
+            }
+
+            _glAttachShader(program, shader);
+            GetError().LogIfError(
+                e => $"Encountered OpenGL error `{e}` while attaching shader '{shader}' to program '{program}'. "
+                    + e switch
+                    {
+                        ErrorCode.INVALID_OPERATION
+                            => "This can happen if this shader object is already attached to the specified program.",
+                        _ => "This should be impossible; perhaps an earlier error went uncaught?"
+                    }
+            );
+        }
+
+        /// <summary>
+        /// Detaches an OpenGL shader object from a given OpenGL program.
+        /// </summary>
+        /// <param name="program">The program object to detach the shader from.</param>
+        /// <param name="shader">The shader object to detach.</param>
+        public static void DetachShader(uint program, uint shader)
+        {
+            if (!IsProgram(program))
+            {
+                Debug.LogError($"Cannot detach a shader from object '{program}' as it is not an OpenGL program object.");
+                return;
+            }
+            else if (!IsShader(shader))
+            {
+                Debug.LogError($"Cannot detach object '{shader}' from a program as it is not an OpenGL shader object.");
+                return;
+            }
+
+            _glDetachShader(program, shader);
+            GetError().LogIfError(
+                e => $"Encountered OpenGL error `{e}` while detaching shader '{shader}' from program '{program}'. "
+                    + e switch
+                    {
+                        ErrorCode.INVALID_OPERATION
+                            => "This can happen if this shader object was not attached to the specified program.",
+                        _ => "This should be impossible; perhaps an earlier error went uncaught?"
+                    }
+            );
+        }
+
+        /// <summary>
+        /// Deletes a given OpenGL shader.
+        /// </summary>
+        /// <param name="shader">The shader to delete.</param>
         public static void DeleteShader(uint shader)
         {
             if (!IsShader(shader)) return;
@@ -429,6 +493,123 @@ namespace Vectoray.Rendering.OpenGL
         /// this function will *always* return false.</param>
         /// <returns>Whether or not the OpenGL object was a shader.</returns>
         public static bool IsShader(uint objectId) => _glIsShader(objectId);
+
+        #endregion
+
+        #region Programs
+
+        /// <summary>
+        /// Create a new OpenGL program object and get its ID.
+        /// </summary>
+        /// <returns>A new `Some` containing the program object ID if creation was successful; `None` otherwise.</returns>
+        public static Opt<uint> CreateProgram() =>
+            _glCreateProgram()
+                .SomeIf(x => x != 0)
+                .LogErrorIfNone($"glCreateProgram failed and returned 0. Last reported OpenGL error: {GetError()}");
+
+        /// <summary>
+        /// Link a given OpenGL shader program object.
+        /// When done, this will also check for an OpenGL error and log it if found.
+        /// </summary>
+        /// <param name="program">The program object to link.</param>
+        public static void LinkProgram(uint program)
+        {
+            if (!IsProgram(program))
+            {
+                Debug.LogError("Cannot link shader program of object '{shader}', as it is not an OpenGL program object.");
+                return;
+            }
+
+            _glLinkProgram(program);
+            GetError().LogIfError(
+                e => $"Encountered unexpected OpenGL error `{e}` while linking a shader program. " + e switch
+                {
+                    ErrorCode.INVALID_OPERATION
+                        => "This can happen if this program object is currently active and using transform feedback mode.",
+                    _ => "This should be impossible; perhaps an earlier error went uncaught?"
+                }
+            );
+        }
+
+        /// <summary>
+        /// Get a parameter from an OpenGL program object.
+        /// When done, this will also check for an OpenGL error and log it if found.
+        /// </summary>
+        /// <param name="shader">The program to query.</param>
+        /// <param name="param">The parameter to query.</param>
+        /// <returns>
+        /// `None` if the given ID did not represent an OpenGL program, or a `Some` containing the retrieved value otherwise.
+        /// </returns>
+        public static Opt<int> GetProgramParam(uint program, ProgramParams param)
+        {
+            if (!IsProgram(program))
+            {
+                Debug.LogError($"Cannot get program parameter of object '{program}', as it is not an OpenGL program object.");
+                return 0.None();
+            }
+
+            _glGetProgramiv(program, param, out int value);
+            GetError().LogIfError(
+                e => $"Encountered OpenGL error `{e}` while querying a program parameter `{param}`. " + e switch
+                {
+                    ErrorCode.INVALID_OPERATION when new[] {
+                            ProgramParams.GEOMETRY_VERTICES_OUT,
+                            ProgramParams.GEOMETRY_INPUT_TYPE,
+                            ProgramParams.GEOMETRY_OUTPUT_TYPE
+                        }.Contains(param)
+                        => "This can be caused if the program being queried does not have a geometry shader.",
+                    ErrorCode.INVALID_OPERATION when ProgramParams.COMPUTE_GROUP_WORK_SIZE == param
+                        => "This can be caused if the program does not contain a binary for the compute shader stage.",
+                    _ => "This should be impossible; perhaps an earlier error went uncaught?"
+                }
+            );
+            return value.Some();
+        }
+
+        /// <summary>
+        /// Get the information log for a given OpenGL program object, which details the outcome of its linking.
+        /// </summary>
+        /// <param name="program">The program object to get the information log of.</param>
+        /// <returns>
+        /// `None` if the given ID did not represent an OpenGL program,
+        /// or a `Some` containing the retrieved information log otherwise.
+        /// </returns>
+        public static Opt<string> GetProgramInfoLog(uint program)
+        {
+            if (!IsProgram(program))
+            {
+                Debug.LogError(
+                    $"Cannot retrieve program info log of object '{program}', as it is not an OpenGL program object.");
+                return "".None();
+            }
+
+            _glGetProgramiv(program, ProgramParams.INFO_LOG_LENGTH, out int value);
+            _glGetProgramInfoLog(program, (uint)value, out _, out string infoLog);
+            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while getting a program's info log. "
+                                  + "This should be impossible; perhaps an earlier error went uncaught?");
+            return infoLog.Some();
+        }
+
+        /// <summary>
+        /// Deletes a given OpenGL program.
+        /// 
+        /// If any shader objects are attached to the program, they will be detached as a result of this, though
+        /// they will not be deleted unless already marked for such via `DeleteShader`.
+        /// </summary>
+        /// <param name="program">The program to delete.</param>
+        public static void DeleteProgram(uint program)
+        {
+            if (!IsProgram(program)) return;
+            _glDeleteProgram(program);
+        }
+
+        /// <summary>
+        /// Checks whether a given OpenGL object is a shader program.
+        /// </summary>
+        /// <param name="objectId">The OpenGL object ID to check. If this is zero,
+        /// this function will *always* return false.</param>
+        /// <returns>Whether or not the OpenGL object was a shader program.</returns>
+        public static bool IsProgram(uint objectId) => _glIsProgram(objectId);
 
         #endregion
 
@@ -471,7 +652,7 @@ namespace Vectoray.Rendering.OpenGL
         #region Debugging
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate GLErrorCode glGetError();
+        private delegate ErrorCode glGetError();
         private static readonly glGetError _glGetError = GetDelegate<glGetError>();
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -502,17 +683,24 @@ namespace Vectoray.Rendering.OpenGL
         private static readonly glCompileShader _glCompileShader = GetDelegate<glCompileShader>();
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate void glGetShaderiv(uint shader, GLShaderObjectParams pname, out int @params);
+        private delegate void glGetShaderiv(uint shader, ShaderParams pname, out int @params);
         private static readonly glGetShaderiv _glGetShaderiv = GetDelegate<glGetShaderiv>();
 
         // Previous versions of this program (prior to the total rewrite) used StdCall for most OpenGL functions,
-        // and ended up having to use [MarshalAs(UnmanagedType.LPStr)] and [Out()] on the infoLog parameter.
+        // and ended up having to use [MarshalAs(UnmanagedType.LPStr)] on the infoLog parameter.
         // Cdecl should prevent MarshalAs or StringBuilder from being necessary (citation needed),
         // TODO: test the above?
-        // and [Out()] is effectively equivalent to just "out".
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void glGetShaderInfoLog(uint shader, uint maxLength, out uint length, out string infoLog);
         private static readonly glGetShaderInfoLog _glGetShaderInfoLog = GetDelegate<glGetShaderInfoLog>();
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glAttachShader(uint program, uint shader);
+        private static readonly glAttachShader _glAttachShader = GetDelegate<glAttachShader>();
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glDetachShader(uint program, uint shader);
+        private static readonly glDetachShader _glDetachShader = GetDelegate<glDetachShader>();
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void glDeleteShader(uint shader);
@@ -521,6 +709,32 @@ namespace Vectoray.Rendering.OpenGL
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate bool glIsShader(uint shader);
         private static readonly glIsShader _glIsShader = GetDelegate<glIsShader>();
+
+        // Programs
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate uint glCreateProgram();
+        private static readonly glCreateProgram _glCreateProgram = GetDelegate<glCreateProgram>();
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glLinkProgram(uint program);
+        private static readonly glLinkProgram _glLinkProgram = GetDelegate<glLinkProgram>();
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glGetProgramiv(uint program, ProgramParams pname, out int @params);
+        private static readonly glGetProgramiv _glGetProgramiv = GetDelegate<glGetProgramiv>();
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glGetProgramInfoLog(uint program, uint maxLength, out uint length, out string infoLog);
+        private static readonly glGetProgramInfoLog _glGetProgramInfoLog = GetDelegate<glGetProgramInfoLog>();
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glDeleteProgram(uint program);
+        private static readonly glDeleteProgram _glDeleteProgram = GetDelegate<glDeleteProgram>();
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate bool glIsProgram(uint program);
+        private static readonly glIsProgram _glIsProgram = GetDelegate<glIsProgram>();
 
         #endregion
 
