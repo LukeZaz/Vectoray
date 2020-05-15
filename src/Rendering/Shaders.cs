@@ -23,7 +23,7 @@ namespace Vectoray.Rendering.OpenGL
     /// <summary>
     /// An enum of the two types of OpenGL shader.
     /// </summary>
-    public enum GLShaderType
+    public enum ShaderType
     {
         FRAGMENT_SHADER = 0x8B30,
         VERTEX_SHADER = 0x8B31
@@ -84,7 +84,7 @@ namespace Vectoray.Rendering.OpenGL
         /// <summary>
         /// The type of OpenGL shader this is.
         /// </summary>
-        public readonly GLShaderType type;
+        public readonly ShaderType type;
 
         /// <summary>
         /// Gets the ID of the OpenGL shader object this represents, if it's usable;
@@ -110,7 +110,7 @@ namespace Vectoray.Rendering.OpenGL
 
         #region Lifecycle functionality
 
-        private Shader(uint id, GLShaderType type) => (this.id, this.type) = (id, type);
+        private Shader(uint id, ShaderType type) => (this.id, this.type) = (id, type);
 
         /// <summary>
         /// Creates a new shader of the specified type using the given source code.
@@ -120,7 +120,7 @@ namespace Vectoray.Rendering.OpenGL
         /// <returns>
         /// A `Valid` containing a new `Shader` if successful, or an `Invalid` containing an error if one occurred.
         /// </returns>
-        public static Result<Shader, ShaderException> CreateNew(GLShaderType type, string[] sources)
+        public static Result<Shader, ShaderException> CreateNew(ShaderType type, string[] sources)
         {
             if (GL.CreateShader(type) is Some<uint>(uint shaderId))
             {
