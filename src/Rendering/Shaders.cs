@@ -77,6 +77,11 @@ namespace Vectoray.Rendering.OpenGL
         #region Variable & property declaration
 
         /// <summary>
+        /// The parent renderer of this shader, representing the OpenGL context it will use.
+        /// </summary>
+        private readonly Renderer parentRenderer;
+
+        /// <summary>
         /// The OpenGL identifier for this shader object.
         /// </summary>
         private readonly uint id;
@@ -102,15 +107,16 @@ namespace Vectoray.Rendering.OpenGL
         /// *and* said shader object is not marked for deletion.
         /// </returns>
         public bool IsUsable =>
-            GL.IsShader(id) &&
-            GL.GetShaderParam(id, ShaderParams.DELETE_STATUS) is Some<int>(int x) &&
+            parentRenderer.IsShader(id) &&
+            parentRenderer.GetShaderParam(id, ShaderParams.DELETE_STATUS) is Some<int>(int x) &&
             x == 0;
 
         #endregion
 
         #region Lifecycle functionality
 
-        private Shader(uint id, ShaderType type) => (this.id, this.type) = (id, type);
+        private Shader(Renderer renderer, uint id, ShaderType type) =>
+            (parentRenderer, this.id, this.type) = (renderer, id, type);
 
         /// <summary>
         /// Creates a new shader of the specified type using the given source code.
@@ -120,20 +126,25 @@ namespace Vectoray.Rendering.OpenGL
         /// <returns>
         /// A `Valid` containing a new `Shader` if successful, or an `Invalid` containing an error if one occurred.
         /// </returns>
-        public static Result<Shader, ShaderException> CreateNew(ShaderType type, string[] sources)
+        public static Result<Shader, ShaderException> CreateNew(Renderer renderer, ShaderType type, string[] sources)
         {
-            if (GL.CreateShader(type) is Some<uint>(uint shaderId))
+            if (renderer == null)
+                return new ShaderRendererNullException(
+                    "Failed to create a shader as the renderer provided was null.")
+                    .Invalid<ShaderException>();
+
+            if (renderer.CreateShader(type) is Some<uint>(uint shaderId))
             {
-                Shader instance = new Shader(shaderId, type);
-                GL.SetShaderSource(instance.id, sources);
-                GL.CompileShader(instance.id);
+                Shader instance = new Shader(renderer, shaderId, type);
+                renderer.SetShaderSource(instance.id, sources);
+                renderer.CompileShader(instance.id);
 
                 // The 'is' check here is for deconstruction; the method only returns None if the object id
                 // doesn't represent a shader object, and we can be pretty certain that won't happen.
-                if (GL.GetShaderParam(instance.id, ShaderParams.COMPILE_STATUS) is Some<int>(int x) && x == 0)
+                if (renderer.GetShaderParam(instance.id, ShaderParams.COMPILE_STATUS) is Some<int>(int x) && x == 0)
                 {
                     // Same deal for the 'is' check here.
-                    if (GL.GetShaderInfoLog(instance.id) is Some<string>(string message))
+                    if (renderer.GetShaderInfoLog(instance.id) is Some<string>(string message))
                         return new ShaderCompilationFailedException(
                             $"Failed to compile OpenGL shader '{instance.id}'. Info log: {message}")
                             .Invalid<ShaderException>();
@@ -147,7 +158,7 @@ namespace Vectoray.Rendering.OpenGL
 
         ~Shader()
         {
-            if (IsUsable) GL.DeleteShader(id);
+            if (IsUsable) parentRenderer.DeleteShader(id);
         }
 
         #endregion
@@ -158,6 +169,11 @@ namespace Vectoray.Rendering.OpenGL
     /// </summary>
     public class ShaderProgram
     {
+        /// <summary>
+        /// The parent renderer of this program object, representing the OpenGL context it will use.
+        /// </summary>
+        private readonly Renderer parentRenderer;
+
         /// <summary>
         /// The OpenGL identifier for this program object.
         /// </summary>
@@ -179,11 +195,11 @@ namespace Vectoray.Rendering.OpenGL
         /// *and* said program object is not marked for deletion.
         /// </returns>
         public bool IsUsable =>
-            GL.IsProgram(id) &&
-            GL.GetProgramParam(id, ProgramParams.DELETE_STATUS) is Some<int>(int x) &&
+            parentRenderer.IsProgram(id) &&
+            parentRenderer.GetProgramParam(id, ProgramParams.DELETE_STATUS) is Some<int>(int x) &&
             x == 0;
 
-        private ShaderProgram(uint id) => this.id = id;
+        private ShaderProgram(Renderer renderer, uint id) => (parentRenderer, this.id) = (renderer, id);
 
         /// <summary>
         /// Creates a new shader program using the given shaders.
@@ -192,31 +208,36 @@ namespace Vectoray.Rendering.OpenGL
         /// <returns>
         /// A `Valid` containing a new `ShaderProgram` if successful, or an `Invalid` containing an error if one occurred.
         /// </returns>
-        public static Result<ShaderProgram, ShaderProgramException> CreateNew(Shader[] shaders)
+        public static Result<ShaderProgram, ShaderProgramException> CreateNew(Renderer renderer, Shader[] shaders)
         {
-            if (GL.CreateProgram() is Some<uint>(uint programId))
+            if (renderer == null)
+                return new ProgramRendererNullException(
+                    "Failed to create a shader program as the renderer provided was null.")
+                    .Invalid<ShaderProgramException>();
+
+            if (renderer.CreateProgram() is Some<uint>(uint programId))
             {
-                ShaderProgram instance = new ShaderProgram(programId);
+                ShaderProgram instance = new ShaderProgram(renderer, programId);
                 foreach (Shader shader in shaders)
                 {
                     if (shader.ID is Some<uint>(uint shaderId))
-                        GL.AttachShader(programId, shaderId);
+                        renderer.AttachShader(programId, shaderId);
                     else
                     {
-                        GL.DeleteProgram(programId);
+                        renderer.DeleteProgram(programId);
                         return new ShaderNotUsableException(
                             "Failed to create OpenGL shader program as one of the given shaders was not usable.")
                             .Invalid<ShaderProgramException>();
                     }
                 }
 
-                GL.LinkProgram(programId);
+                renderer.LinkProgram(programId);
                 // The 'is' check here is for deconstruction; the method only returns None if the object id
                 // doesn't represent a shader object, and we can be pretty certain that won't happen.
-                if (GL.GetProgramParam(instance.id, ProgramParams.LINK_STATUS) is Some<int>(int x) && x == 0)
+                if (renderer.GetProgramParam(instance.id, ProgramParams.LINK_STATUS) is Some<int>(int x) && x == 0)
                 {
                     // Same deal for the 'is' check here.
-                    if (GL.GetShaderInfoLog(instance.id) is Some<string>(string message))
+                    if (renderer.GetShaderInfoLog(instance.id) is Some<string>(string message))
                         return new ShaderProgramCreationFailedException(
                             $"Failed to link OpenGL program '{instance.id}'. Info log: {message}")
                             .Invalid<ShaderProgramException>();
@@ -225,7 +246,7 @@ namespace Vectoray.Rendering.OpenGL
                 foreach (Shader shader in shaders)
                 {
                     if (shader.ID is Some<uint>(uint shaderId))
-                        GL.DetachShader(programId, shaderId);
+                        renderer.DetachShader(programId, shaderId);
                 }
                 return instance.Valid();
             }
@@ -236,7 +257,7 @@ namespace Vectoray.Rendering.OpenGL
 
         ~ShaderProgram()
         {
-            if (IsUsable) GL.DeleteProgram(id);
+            if (IsUsable) parentRenderer.DeleteProgram(id);
         }
     }
 
@@ -250,6 +271,15 @@ namespace Vectoray.Rendering.OpenGL
         protected ShaderException() : base() { }
         protected ShaderException(string message) : base(message) { }
         protected ShaderException(string message, Exception inner) : base(message, inner) { }
+    }
+
+    /// <summary>
+    /// An exception used to indicate that the provided Renderer instance was null.
+    /// </summary>
+    public class ShaderRendererNullException : ShaderException
+    {
+        public ShaderRendererNullException(string message) : base(message) { }
+        public ShaderRendererNullException(string message, Exception inner) : base(message, inner) { }
     }
 
     /// <summary>
@@ -278,6 +308,15 @@ namespace Vectoray.Rendering.OpenGL
         protected ShaderProgramException() : base() { }
         protected ShaderProgramException(string message) : base(message) { }
         protected ShaderProgramException(string message, Exception inner) : base(message, inner) { }
+    }
+
+    /// <summary>
+    /// An exception used to indicate that the provided Renderer instance was null.
+    /// </summary>
+    public class ProgramRendererNullException : ShaderProgramException
+    {
+        public ProgramRendererNullException(string message) : base(message) { }
+        public ProgramRendererNullException(string message, Exception inner) : base(message, inner) { }
     }
 
     public class ShaderNotUsableException : ShaderProgramException
