@@ -98,7 +98,7 @@ namespace Vectoray.Rendering
 
             _glGetError = GetDelegate<glGetError>();
             _glGetString = GetDelegate<glGetString>();
-            _glGetStringi = GetDelegate<glGetStringi>();
+            _glGetStringi = GetDelegate<glGetStringi>("glGetString");
 
             _glCreateShader = GetDelegate<glCreateShader>();
             _glShaderSource = GetDelegate<glShaderSource>();
