@@ -139,8 +139,8 @@ namespace Vectoray.Rendering.OpenGL
                 renderer.SetShaderSource(instance.id, sources);
                 renderer.CompileShader(instance.id);
 
-                // The 'is' check here is for deconstruction; the method only returns None if the object id
-                // doesn't represent a shader object, and we can be pretty certain that won't happen.
+                // // The 'is' check here is for deconstruction; the method only returns None if the object id
+                // // doesn't represent a shader object, and we can be pretty certain that won't happen.
                 if (renderer.GetShaderParam(instance.id, ShaderParams.COMPILE_STATUS) is Some<int>(int x) && x == 0)
                 {
                     // Same deal for the 'is' check here.
@@ -148,6 +148,9 @@ namespace Vectoray.Rendering.OpenGL
                         return new ShaderCompilationFailedException(
                             $"Failed to compile OpenGL shader '{instance.id}'. Info log: {message}")
                             .Invalid<ShaderException>();
+                    else return new ShaderCompilationFailedException(
+                        $"Failed to compile OpenGL shader '{instance.id}'. Additionally, the info log could not be retrieved.")
+                        .Invalid<ShaderException>();
                 }
                 else return instance.Valid();
             }

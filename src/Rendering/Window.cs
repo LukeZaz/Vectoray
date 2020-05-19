@@ -169,8 +169,8 @@ namespace Vectoray.Rendering
 
             return Renderer.CreateRenderer(windowPointer) switch
             {
-                Valid<Renderer, Renderer.RendererException>(Renderer r) => (this.Renderer = r).Valid(),
-                Invalid<Renderer, Renderer.RendererException>(Renderer.RendererException e) =>
+                Valid<Renderer, RendererException>(Renderer r) => (this.Renderer = r).Valid(),
+                Invalid<Renderer, RendererException>(RendererException e) =>
                     new RendererCreationFailedException(e.Message, e).Invalid<WindowException>(),
                 _ => new RendererCreationFailedException("Unknown Renderer creation failure occurred.")
                     .Invalid<WindowException>()

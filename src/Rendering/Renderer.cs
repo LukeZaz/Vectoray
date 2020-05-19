@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 
 using Vectoray.Rendering.OpenGL;
 
@@ -356,11 +357,13 @@ namespace Vectoray.Rendering
                 return "".None();
             }
 
-            _glGetShaderiv(shader, ShaderParams.INFO_LOG_LENGTH, out int value);
-            _glGetShaderInfoLog(shader, (uint)value, out _, out string infoLog);
+            _glGetShaderiv(shader, ShaderParams.INFO_LOG_LENGTH, out int length);
+            StringBuilder infoLog = new StringBuilder(length);
+
+            _glGetShaderInfoLog(shader, (uint)length, out _, infoLog);
             GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while getting a shader's info log. "
                                   + "This should be impossible; perhaps an earlier error went uncaught?");
-            return infoLog.Some();
+            return infoLog.ToString().Some();
         }
 
         /// <summary>
@@ -530,11 +533,13 @@ namespace Vectoray.Rendering
                 return "".None();
             }
 
-            _glGetProgramiv(program, ProgramParams.INFO_LOG_LENGTH, out int value);
-            _glGetProgramInfoLog(program, (uint)value, out _, out string infoLog);
+            _glGetProgramiv(program, ProgramParams.INFO_LOG_LENGTH, out int length);
+            StringBuilder infoLog = new StringBuilder(length);
+
+            _glGetProgramInfoLog(program, (uint)length, out _, infoLog);
             GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while getting a program's info log. "
                                   + "This should be impossible; perhaps an earlier error went uncaught?");
-            return infoLog.Some();
+            return infoLog.ToString().Some();
         }
 
         /// <summary>
@@ -636,12 +641,18 @@ namespace Vectoray.Rendering
         private delegate void glGetShaderiv(uint shader, ShaderParams pname, out int @params);
         private readonly glGetShaderiv _glGetShaderiv;
 
-        // Previous versions of this program (prior to the total rewrite) used StdCall for most OpenGL functions,
-        // and ended up having to use [MarshalAs(UnmanagedType.LPStr)] on the infoLog parameter.
-        // Cdecl should prevent MarshalAs or StringBuilder from being necessary (citation needed),
-        // TODO: test the above?
+        #region Explanation for [Out] StringBuilder
+        // The function this calls needs a mutable, pre-initialized character array to fill with data.
+        // Hence, a StringBuilder must be used, as String is both immutable and cannot be created with a base capacity.
+        // Because the StringBuilder must be pre-initialized with sufficient capacity, an 'out' keyword cannot be used,
+        // as it allows for uninitialized instances to be passed. [Out] is not strictly necessary, but is used anyways
+        // as StringBuilder (unlike other reference types) defaults to [In, Out], which is unnecessary due to
+        // its contents being set, but not retrieved, by this function.
+        // See this StackOveflow post for details on the In/Out attributes vs. their respective keywords:
+        // https://stackoverflow.com/questions/56097222/keywords-in-out-ref-vs-attributes-in-out-in-out
+        #endregion
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate void glGetShaderInfoLog(uint shader, uint maxLength, out uint length, out string infoLog);
+        private delegate void glGetShaderInfoLog(uint shader, uint maxLength, out uint length, [Out] StringBuilder infoLog);
         private readonly glGetShaderInfoLog _glGetShaderInfoLog;
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -674,8 +685,10 @@ namespace Vectoray.Rendering
         private delegate void glGetProgramiv(uint program, ProgramParams pname, out int @params);
         private readonly glGetProgramiv _glGetProgramiv;
 
+        // This uses a StringBuilder with [Out] for the same reasons as glGetShaderInfoLog.
+        // See the comments there for details.
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate void glGetProgramInfoLog(uint program, uint maxLength, out uint length, out string infoLog);
+        private delegate void glGetProgramInfoLog(uint program, uint maxLength, out uint length, [Out] StringBuilder infoLog);
         private readonly glGetProgramInfoLog _glGetProgramInfoLog;
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
