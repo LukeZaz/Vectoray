@@ -6,10 +6,10 @@ layout (location = 1) in vec3 color;
 out VSOutput
 {
     vec3 color;
-} output;
+} vsOutput;
 
 void main()
 {
     gl_Position = vec4(position, 1.0);
-    output.color = color;
+    vsOutput.color = color;
 }

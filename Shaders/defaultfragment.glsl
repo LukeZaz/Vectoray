@@ -3,11 +3,11 @@
 in VSOutput
 {
     vec3 color;
-} input;
+} vsInput;
 
 out vec4 color;
 
 void main()
 {
-    color = input.color;
+    color = vec4(vsInput.color, 1.0);
 }
