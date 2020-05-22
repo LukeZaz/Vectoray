@@ -115,8 +115,16 @@ namespace Vectoray.Rendering
             _glLinkProgram = GetDelegate<glLinkProgram>();
             _glGetProgramiv = GetDelegate<glGetProgramiv>();
             _glGetProgramInfoLog = GetDelegate<glGetProgramInfoLog>();
+            _glUseProgram = GetDelegate<glUseProgram>();
             _glDeleteProgram = GetDelegate<glDeleteProgram>();
             _glIsProgram = GetDelegate<glIsProgram>();
+
+            _glGenBuffers = GetDelegate<glGenBuffers>();
+            _glBindBuffer = GetDelegate<glBindBuffer>();
+            _glBufferData = GetDelegate<glBufferData>();
+            _glNamedBufferData = GetDelegate<glNamedBufferData>();
+            _glDeleteBuffers = GetDelegate<glDeleteBuffers>();
+            _glIsBuffer = GetDelegate<glIsBuffer>();
 
             _glClear = GetDelegate<glClear>();
             _glClearColor = GetDelegate<glClearColor>();
@@ -228,9 +236,9 @@ namespace Vectoray.Rendering
         /// Specifies a symbolic constant, one of GL_VENDOR, GL_RENDERER, GL_VERSION, or GL_SHADING_LANGUAGE_VERSION.
         /// </param>
         /// <returns>A string describing an aspect of the current OpenGL connection.</returns>
-        public string GetString(GLConnectionInfo name)
+        public string GetString(ConnectionInfo name)
         {
-            if (name != GLConnectionInfo.EXTENSIONS) return Marshal.PtrToStringAnsi(_glGetString(name));
+            if (name != ConnectionInfo.EXTENSIONS) return Marshal.PtrToStringAnsi(_glGetString(name));
             else Debug.LogError("Cannot read a GL_EXTENSIONS string with 'GetString(GLConnectionInfo name)'. "
                               + "(Did you mean to use 'GetExtensionString(int index)'?)");
             return string.Empty;
@@ -243,7 +251,7 @@ namespace Vectoray.Rendering
         /// <returns>The string at `index`.</returns>
         public Opt<string> GetExtensionString(int index)
         {
-            string str = Marshal.PtrToStringAnsi(_glGetStringi(GLConnectionInfo.EXTENSIONS, index));
+            string str = Marshal.PtrToStringAnsi(_glGetStringi(ConnectionInfo.EXTENSIONS, index));
             if (GetError() == ErrorCode.INVALID_VALUE)
             {
                 Debug.LogError("glGetStringi likely given out-of-range index value; encountered `GL_INVALID_VALUE` error.");
@@ -259,10 +267,10 @@ namespace Vectoray.Rendering
         {
             Debug.LogColored("<| OpenGL Connection Information", ConsoleColor.White);
             Debug.Log(
-                $" | Vendor: {GetString(GLConnectionInfo.VENDOR)}\n"
-              + $" | Renderer: {GetString(GLConnectionInfo.RENDERER)}\n"
-              + $" | Version: {GetString(GLConnectionInfo.VERSION)}\n"
-              + $"<| GLSL version: {GetString(GLConnectionInfo.SHADING_LANGUAGE_VERSION)}"
+                $" | Vendor: {GetString(ConnectionInfo.VENDOR)}\n"
+              + $" | Renderer: {GetString(ConnectionInfo.RENDERER)}\n"
+              + $" | Version: {GetString(ConnectionInfo.VERSION)}\n"
+              + $"<| GLSL version: {GetString(ConnectionInfo.SHADING_LANGUAGE_VERSION)}"
             );
         }
 
@@ -295,7 +303,7 @@ namespace Vectoray.Rendering
             }
 
             _glShaderSource(shader, (uint)sources.Length, sources, sources.Select(x => x.Length).ToArray());
-            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while setting shader source. "
+            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while setting shader {shader}'s source. "
                                       + "This should be impossible; perhaps an earlier error went uncaught?");
         }
 
@@ -313,7 +321,7 @@ namespace Vectoray.Rendering
             }
 
             _glCompileShader(shader);
-            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while compiling a shader. "
+            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while compiling shader '{shader}'. "
                                       + "This should be impossible; perhaps an earlier error went uncaught?");
         }
 
@@ -335,8 +343,10 @@ namespace Vectoray.Rendering
             }
 
             _glGetShaderiv(shader, param, out int value);
-            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while querying shader parameter `{param}`. "
-                                      + "This should be impossible; perhaps an earlier error went uncaught?");
+            GetError().LogIfError(
+                e => $"Encountered unexpected OpenGL error `{e}` while querying shader '{shader}' for parameter `{param}`. "
+                    + "This should be impossible; perhaps an earlier error went uncaught?"
+            );
             return value.Some();
         }
 
@@ -361,7 +371,7 @@ namespace Vectoray.Rendering
             StringBuilder infoLog = new StringBuilder(length);
 
             _glGetShaderInfoLog(shader, (uint)length, out _, infoLog);
-            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while getting a shader's info log. "
+            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while getting shader {shader}'s info log. "
                                   + "This should be impossible; perhaps an earlier error went uncaught?");
             return infoLog.ToString().Some();
         }
@@ -472,7 +482,7 @@ namespace Vectoray.Rendering
 
             _glLinkProgram(program);
             GetError().LogIfError(
-                e => $"Encountered unexpected OpenGL error `{e}` while linking a shader program. " + e switch
+                e => $"Encountered unexpected OpenGL error `{e}` while linking shader program '{program}'. " + e switch
                 {
                     ErrorCode.INVALID_OPERATION
                         => "This can happen if this program object is currently active and using transform feedback mode.",
@@ -500,7 +510,7 @@ namespace Vectoray.Rendering
 
             _glGetProgramiv(program, param, out int value);
             GetError().LogIfError(
-                e => $"Encountered OpenGL error `{e}` while querying a program parameter `{param}`. " + e switch
+                e => $"Encountered OpenGL error `{e}` while querying program '{program}' for parameter `{param}`. " + e switch
                 {
                     ErrorCode.INVALID_OPERATION when new[] {
                             ProgramParams.GEOMETRY_VERTICES_OUT,
@@ -537,9 +547,34 @@ namespace Vectoray.Rendering
             StringBuilder infoLog = new StringBuilder(length);
 
             _glGetProgramInfoLog(program, (uint)length, out _, infoLog);
-            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while getting a program's info log. "
-                                  + "This should be impossible; perhaps an earlier error went uncaught?");
+            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while getting program {program}'s"
+                                  + "info log. This should be impossible; perhaps an earlier error went uncaught?");
             return infoLog.ToString().Some();
+        }
+
+        /// <summary>
+        /// Sets the given program to be used as part of the current rendering state.
+        /// </summary>
+        /// <param name="program">The ID of the program to use.
+        /// A value of zero represents no program and will leave no program being used.</param>
+        public void UseProgram(uint program)
+        {
+            if (!IsProgram(program))
+            {
+                Debug.Log($"Cannot use program `{program}` for rendering, as it is not an OpenGL program object.");
+                return;
+            }
+
+            _glUseProgram(program);
+            GetError().LogIfError(
+                e => $"Encountered OpenGL error `{e}` while attempting to use program `{program}`. " + e switch
+                {
+                    ErrorCode.INVALID_OPERATION
+                        => "This can be caused if OpenGL failed to make the program part of the active state,"
+                        + " or if transform feedback mode is active.",
+                    _ => "This should be impossible; perhaps an earlier error went uncaught?",
+                }
+            );
         }
 
         /// <summary>
@@ -562,6 +597,142 @@ namespace Vectoray.Rendering
         /// this function will *always* return false.</param>
         /// <returns>Whether or not the OpenGL object was a shader program.</returns>
         public bool IsProgram(uint objectId) => _glIsProgram(objectId);
+
+        #endregion
+
+        #region Buffers
+        // TODO: Probably modify this an all opengl object stuff to use wrapper object types?
+
+        /// <summary>
+        /// Create one or more OpenGL buffer objects and store them in an array.
+        /// </summary>
+        /// <param name="amount">The amount of buffer objects to create.</param>
+        public uint[] GenBuffers(uint amount)
+        {
+            uint[] buffers = new uint[amount];
+            _glGenBuffers(amount, buffers);
+            return buffers;
+        }
+
+        /// <summary>
+        /// Binds a given OpenGL buffer object to one of the various buffer targets.
+        /// </summary>
+        /// <param name="target">The OpenGL buffer target to bind the buffer to.</param>
+        /// <param name="buffer">The OpenGL buffer object to bind.
+        /// A value of zero represents no buffer and will unbind any currently bound without replacing them.</param>
+        public void BindBuffer(BufferTarget target, uint buffer)
+        {
+            if (!IsBuffer(buffer))
+            {
+                Debug.LogError(
+                    $"Cannot bind object '{buffer}' to buffer target `{target}` as it is not an OpenGL buffer object.");
+                return;
+            }
+
+            _glBindBuffer(target, buffer);
+            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while binding buffer '{buffer}'. "
+                                  + "This should be impossible; perhaps an earlier error went uncaught?");
+        }
+
+        /// <summary>
+        /// Creates a new data store for the buffer object bound to `target` and fills it with `data`, while also
+        /// providing a usage hint for this data to OpenGL. Old data stores will be deleted in this process.
+        /// </summary>
+        /// <param name="target">The buffer target the buffer in question is bound to.</param>
+        /// <param name="data">The data to use to create the new data store for the buffer.</param>
+        /// <param name="usage">The usage hint to give to OpenGL for optimization purposes.</param>
+        /// <typeparam name="T">
+        /// The [unmanaged] type to use.
+        /// 
+        /// [unmanaged]: https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/unmanaged-types
+        /// </typeparam>
+        public void SetBufferData<T>(BufferTarget target, T[] data, BufferUsageHint usage)
+            where T : unmanaged
+        {
+            // It might be better to instead convert the data to a series of IntPtrs and pass those,
+            // but really I'm not sure if it matters, and this is far simpler.
+            _glBufferData(target, Marshal.SizeOf<T>() * data.Length, Array.ConvertAll(data, item => (object)item), usage);
+            GetError().LogIfError(
+                e => $"Encountered OpenGL error `{e}` while attempting to crete a new data store for the buffer object "
+                    + $" bound to buffer target `{target}`. " + e switch
+                    {
+                        ErrorCode.INVALID_OPERATION
+                            => "This can be caused if no buffer is bound to this target, or if the"
+                            + " `GL_BUFFER_IMMUTABLE_STORAGE` flag is enabled for the buffer.",
+                        ErrorCode.OUT_OF_MEMORY
+                            => "This can be caused if OpenGL was unable to create a data store with the specified byte size "
+                            + $"of `{Marshal.SizeOf<T>() * data.Length}` "
+                            + $"(type size of {Marshal.SizeOf<T>()} * array length of {data.Length}).",
+                        _ => "This should be impossible; perhaps an earlier error went uncaught?",
+                    }
+            );
+        }
+
+        /// <summary>
+        /// Creates a new data store for the given buffer object and fills it with `data`, while also
+        /// providing a usage hint for this data to OpenGL. Old data stores will be deleted in this process.
+        /// </summary>
+        /// <param name="buffer">The buffer object to create the data store for.</param>
+        /// <param name="data">The data to use to create the new data store for the buffer.</param>
+        /// <param name="usage">The usage hint to give to OpenGL for optimization purposes.</param>
+        /// <typeparam name="T">
+        /// The [unmanaged] type to use.
+        /// 
+        /// [unmanaged]: https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/unmanaged-types
+        /// </typeparam>
+        public void SetNamedBufferData<T>(uint buffer, T[] data, BufferUsageHint usage)
+            where T : unmanaged
+        {
+            if (!IsBuffer(buffer))
+            {
+                Debug.LogError(
+                    $"Cannot create a buffer data store for object '{buffer}' as it is not an OpenGL buffer object.");
+                return;
+            }
+
+            _glNamedBufferData(buffer, Marshal.SizeOf<T>() * data.Length, Array.ConvertAll(data, item => (object)item), usage);
+            GetError().LogIfError(
+                e => $"Encountered OpenGL error `{e}` while attempting to crete a new data store for the buffer object"
+                    + $" '{buffer}`. " + e switch
+                    {
+                        ErrorCode.INVALID_OPERATION
+                            => "This can be caused if no buffer is bound to this target, or if the"
+                            + " `GL_BUFFER_IMMUTABLE_STORAGE` flag is enabled for the buffer.",
+                        ErrorCode.OUT_OF_MEMORY
+                            => "This can be caused if OpenGL was unable to create a data store with the specified byte size "
+                            + $"of `{Marshal.SizeOf<T>() * data.Length}` "
+                            + $"(type size of {Marshal.SizeOf<T>()} * array length of {data.Length}).",
+                        _ => "This should be impossible; perhaps an earlier error went uncaught?",
+                    }
+            );
+        }
+
+        /// <summary>
+        /// Deletes each OpenGL buffer in a given array of them.
+        /// </summary>
+        /// <param name="buffers">The array of buffers to delete.</param>
+        public void DeleteBuffers(uint[] buffers)
+        {
+            uint[] invalidBuffers = buffers.Where(buffer => !IsBuffer(buffer)).ToArray();
+            if (invalidBuffers.Length > 0)
+            {
+                Debug.LogWarning("Cannot delete some elements of an array of buffers, as some were not valid buffer objects "
+                    + $"(other elements of the array will still be deleted): {string.Join(", ", invalidBuffers)}");
+            }
+
+            // This method silently ignores values that are 0 or not valid buffer objects.
+            _glDeleteBuffers((uint)buffers.Length, buffers);
+            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while deleting a buffer array. "
+                                  + "This should be impossible; perhaps an earlier error went uncaught?");
+        }
+
+        /// <summary>
+        /// Checks whether a given OpenGL object is a buffer.
+        /// </summary>
+        /// <param name="objectId">The OpenGL object ID to check. If this is zero,
+        /// this function will *always* return false.</param>
+        /// <returns>Whether or not the OpenGL object was a buffer.</returns>
+        public bool IsBuffer(uint objectId) => _glIsBuffer(objectId);
 
         #endregion
 
@@ -608,11 +779,11 @@ namespace Vectoray.Rendering
         private readonly glGetError _glGetError;
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate IntPtr glGetString(GLConnectionInfo name);
+        private delegate IntPtr glGetString(ConnectionInfo name);
         private readonly glGetString _glGetString;
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate IntPtr glGetStringi(GLConnectionInfo name, int index);
+        private delegate IntPtr glGetStringi(ConnectionInfo name, int index);
         // glGetString includes glGetStringi, but delegates cannot be overloaded,
         // and the delegates cannot be combined because glGetStringi only accepts one type of
         // GLConnectionInfo value.
@@ -692,12 +863,46 @@ namespace Vectoray.Rendering
         private readonly glGetProgramInfoLog _glGetProgramInfoLog;
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glUseProgram(uint program);
+        private readonly glUseProgram _glUseProgram;
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void glDeleteProgram(uint program);
         private readonly glDeleteProgram _glDeleteProgram;
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate bool glIsProgram(uint program);
         private readonly glIsProgram _glIsProgram;
+
+        #endregion
+
+        #region Buffers
+
+        // Once again, [Out] is used instead of 'out' as the buffer array must have already been initialized.
+        // ('ref' is not used because glGenBuffers does not read data from this array)
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glGenBuffers(uint n, [Out] uint[] buffers);
+        private readonly glGenBuffers _glGenBuffers;
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glBindBuffer(BufferTarget target, uint buffer);
+        private readonly glBindBuffer _glBindBuffer;
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glBufferData(BufferTarget target, int size, object[] data, BufferUsageHint usage);
+        private readonly glBufferData _glBufferData;
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glNamedBufferData(uint buffer, int size, object[] data, BufferUsageHint usage);
+        private readonly glNamedBufferData _glNamedBufferData;
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glDeleteBuffers(uint n, uint[] buffers);
+        private readonly glDeleteBuffers _glDeleteBuffers;
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate bool glIsBuffer(uint buffer);
+        private readonly glIsBuffer _glIsBuffer;
 
         #endregion
 
