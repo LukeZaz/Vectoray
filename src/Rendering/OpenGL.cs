@@ -126,13 +126,47 @@ namespace Vectoray.Rendering.OpenGL
     }
 
     /// <summary>
+    /// An enum of the various data types accepted for vertex attributes in OpenGL. Note that
+    /// this enum does *not* include types for which there is no C# equivalent, such as GLfixed or GLhalf.
+    /// </summary>
+    public enum VertexDataType
+    {
+        BYTE = 0x1400,
+        UNSIGNED_BYTE = 0x1401,
+        SHORT = 0x1402,
+        UNSIGNED_SHORT = 0x1403,
+        INT = 0x1404,
+        UNSIGNED_INT = 0x1405,
+        FLOAT = 0x1406,
+        DOUBLE = 0x140A,
+    }
+
+    /// <summary>
     /// An enum of the three OpenGL buffer bit flags.
     /// </summary>
-    public enum GLClearMask
+    public enum ClearMask
     {
         DEPTH_BUFFER_BIT = 0x00000100,
         STENCIL_BUFFER_BIT = 0x00000400,
         COLOR_BUFFER_BIT = 0x00004000
+    }
+
+    /// <summary>
+    /// An enum of the various OpenGL rendering modes usable with `glDrawArrays`.
+    /// </summary>
+    public enum DrawMode
+    {
+        POINTS = 0x0000,
+        LINES = 0x0001,
+        LINE_LOOP = 0x0002,
+        LINE_STRIP = 0x0003,
+        TRIANGLES = 0x0004,
+        TRIANGLE_STRIP = 0x0005,
+        TRIANGLE_FAN = 0x0006,
+        LINES_ADJACENCY = 0x000A,
+        LINE_STRIP_ADJACENCY = 0x000B,
+        TRIANGLES_ADJACENCY = 0x000C,
+        TRIANGLE_STRIP_ADJACENCY = 0x000D,
     }
 
     #endregion

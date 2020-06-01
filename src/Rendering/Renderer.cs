@@ -95,11 +95,14 @@ namespace Vectoray.Rendering
         {
             (this.context, this.window) = (context, window);
 
+            // TODO: Don't bother loading function delegates this context can't support anyways, e.g.
+            // glNamedBufferData for a < GL4.5 context.
             #region OpenGL function loading
 
+            // While a few OpenGL functions can be loaded immediately as part of static initialization,
+            // most are context-dependent, hence all this.
             _glGetError = GetDelegate<glGetError>();
             _glGetString = GetDelegate<glGetString>();
-            _glGetStringi = GetDelegate<glGetStringi>("glGetString");
 
             _glCreateShader = GetDelegate<glCreateShader>();
             _glShaderSource = GetDelegate<glShaderSource>();
@@ -126,8 +129,24 @@ namespace Vectoray.Rendering
             _glDeleteBuffers = GetDelegate<glDeleteBuffers>();
             _glIsBuffer = GetDelegate<glIsBuffer>();
 
+            _glEnableVertexAttribArray = GetDelegate<glEnableVertexAttribArray>();
+            _glEnableVertexArrayAttrib = GetDelegate<glEnableVertexArrayAttrib>();
+            _glVertexAttribPointer = GetDelegate<glVertexAttribPointer>();
+            _glVertexAttribIPointer = GetDelegate<glVertexAttribIPointer>();
+            _glVertexAttribLPointer = GetDelegate<glVertexAttribLPointer>();
+            _glDisableVertexAttribArray = GetDelegate<glDisableVertexAttribArray>();
+            _glDisableVertexArrayAttrib = GetDelegate<glDisableVertexArrayAttrib>();
+
+            _glGenVertexArrays = GetDelegate<glGenVertexArrays>();
+            _glCreateVertexArrays = GetDelegate<glCreateVertexArrays>();
+            _glBindVertexArray = GetDelegate<glBindVertexArray>();
+            _glDeleteVertexArrays = GetDelegate<glDeleteVertexArrays>();
+            _glIsVertexArray = GetDelegate<glIsVertexArray>();
+
             _glClear = GetDelegate<glClear>();
             _glClearColor = GetDelegate<glClearColor>();
+            _glDrawArrays = GetDelegate<glDrawArrays>();
+            _glViewport = GetDelegate<glViewport>();
 
             #endregion
         }
@@ -249,9 +268,9 @@ namespace Vectoray.Rendering
         /// </summary>
         /// <param name="index">The index of the string to return.</param>
         /// <returns>The string at `index`.</returns>
-        public Opt<string> GetExtensionString(int index)
+        public Opt<string> GetExtensionString(uint index)
         {
-            string str = Marshal.PtrToStringAnsi(_glGetStringi(ConnectionInfo.EXTENSIONS, index));
+            string str = Marshal.PtrToStringAnsi(_glGetString(ConnectionInfo.EXTENSIONS, index));
             if (GetError() == ErrorCode.INVALID_VALUE)
             {
                 Debug.LogError("glGetStringi likely given out-of-range index value; encountered `GL_INVALID_VALUE` error.");
@@ -604,9 +623,10 @@ namespace Vectoray.Rendering
         // TODO: Probably modify this an all opengl object stuff to use wrapper object types?
 
         /// <summary>
-        /// Create one or more OpenGL buffer objects and store them in an array.
+        /// Generate identifiers for one or more OpenGL buffer objects and store them in an array.
         /// </summary>
         /// <param name="amount">The amount of buffer objects to create.</param>
+        /// <returns>An array containing the generated buffer identifiers.</returns>
         public uint[] GenBuffers(uint amount)
         {
             uint[] buffers = new uint[amount];
@@ -622,17 +642,18 @@ namespace Vectoray.Rendering
         /// A value of zero represents no buffer and will unbind any currently bound without replacing them.</param>
         public void BindBuffer(BufferTarget target, uint buffer)
         {
-            if (!IsBuffer(buffer))
-            {
-                Debug.LogError(
-                    $"Cannot bind object '{buffer}' to buffer target `{target}` as it is not an OpenGL buffer object.");
-                return;
-            }
-
+            // TODO: IsBuffer can't be used as unbound buffers don't qualify for it for whatever reason.
+            // Need a buffer wrapper for safety.
             _glBindBuffer(target, buffer);
             GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while binding buffer '{buffer}'. "
                                   + "This should be impossible; perhaps an earlier error went uncaught?");
         }
+
+        /// <summary>
+        /// Unbinds any buffer bound to the provided OpenGL buffer target.
+        /// </summary>
+        /// <param name="target">The buffer target to unbind any currently bound buffer from.</param>
+        public void UnbindBuffer(BufferTarget target) => BindBuffer(target, 0);
 
         /// <summary>
         /// Creates a new data store for the buffer object bound to `target` and fills it with `data`, while also
@@ -646,12 +667,12 @@ namespace Vectoray.Rendering
         /// 
         /// [unmanaged]: https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/unmanaged-types
         /// </typeparam>
-        public void SetBufferData<T>(BufferTarget target, T[] data, BufferUsageHint usage)
+        public void SetBufferData<T>(BufferTarget target, float[] data, BufferUsageHint usage)
             where T : unmanaged
         {
             // It might be better to instead convert the data to a series of IntPtrs and pass those,
             // but really I'm not sure if it matters, and this is far simpler.
-            _glBufferData(target, Marshal.SizeOf<T>() * data.Length, Array.ConvertAll(data, item => (object)item), usage);
+            _glBufferData(target, Marshal.SizeOf<float>() * data.Length, data, usage);
             GetError().LogIfError(
                 e => $"Encountered OpenGL error `{e}` while attempting to crete a new data store for the buffer object "
                     + $" bound to buffer target `{target}`. " + e switch
@@ -683,16 +704,18 @@ namespace Vectoray.Rendering
         public void SetNamedBufferData<T>(uint buffer, T[] data, BufferUsageHint usage)
             where T : unmanaged
         {
+            // TODO: Exit if GL context version is < 4.5, as NamedBufferData is 4.5+ only.
             if (!IsBuffer(buffer))
             {
                 Debug.LogError(
-                    $"Cannot create a buffer data store for object '{buffer}' as it is not an OpenGL buffer object.");
+                    $"Cannot create a buffer data store for object '{buffer}' as it is not an OpenGL buffer object. "
+                    + "(Did you make sure to bind it first?)");
                 return;
             }
 
             _glNamedBufferData(buffer, Marshal.SizeOf<T>() * data.Length, Array.ConvertAll(data, item => (object)item), usage);
             GetError().LogIfError(
-                e => $"Encountered OpenGL error `{e}` while attempting to crete a new data store for the buffer object"
+                e => $"Encountered OpenGL error `{e}` while attempting to create a new data store for the buffer object"
                     + $" '{buffer}`. " + e switch
                     {
                         ErrorCode.INVALID_OPERATION
@@ -717,12 +740,13 @@ namespace Vectoray.Rendering
             if (invalidBuffers.Length > 0)
             {
                 Debug.LogWarning("Cannot delete some elements of an array of buffers, as some were not valid buffer objects "
-                    + $"(other elements of the array will still be deleted): {string.Join(", ", invalidBuffers)}");
+                    + $"(other elements of the array will still be deleted): [" + string.Join(", ", invalidBuffers)
+                    + "] (Did you make sure to create them first?)");
             }
 
             // This method silently ignores values that are 0 or not valid buffer objects.
             _glDeleteBuffers((uint)buffers.Length, buffers);
-            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while deleting a buffer array. "
+            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while deleting an array of buffers. "
                                   + "This should be impossible; perhaps an earlier error went uncaught?");
         }
 
@@ -736,11 +760,308 @@ namespace Vectoray.Rendering
 
         #endregion
 
+        #region Vertex attributes
+
+        /// <summary>
+        /// Enable a given OpenGL vertex attribute array at `index` using the currently bound
+        /// Vertex Array Object.
+        /// </summary>
+        /// <param name="index">The index of the vertex attribute array to enable. Values over 16 are not supported.</param>
+        public void EnableVertexAttribArray(uint index)
+        {
+            // TODO: Check index against GL_MAX_VERTEX_ATTRIBUTES
+            // That will require glGet functionality.
+            // 16 is chosen b/c this is the minimum that can be reasonably expected. Virtually no system supports less,
+            // and many don't support more either.
+            // Only reason it's not a named constant here is because it'll be replaced by a glGet call later.
+            if (index > 16)
+            {
+                Debug.LogError($"Cannot enable vertex attribute array at index '{index}'; indices over 16 are unsupported.");
+                return;
+            }
+
+            _glEnableVertexAttribArray(index);
+            GetError().LogIfError(
+                e => $"Encountered OpenGL error `{e}` while attempting to enable the vertex attribute array at index '{index}'. "
+                    + e switch
+                    {
+                        ErrorCode.INVALID_OPERATION => "This can be caused if no vertex array object is currently bound.",
+                        _ => "This should be impossible; perhaps an earlier error went uncaught?",
+                    }
+            );
+        }
+
+        /// <summary>
+        /// Enable a given OpenGL vertex attribute array at `index`, using the Vertex Attribute Object
+        /// specified by `vaobj`.
+        /// </summary>
+        /// <param name="vaobj">The Vertex Attribute Object to use.</param>
+        /// <param name="index">The index of the vertex attribute array to enable. Values over 16 are not supported.</param>
+        public void EnableVertexAttribArray(uint vaobj, uint index)
+        {
+            if (!IsVertexArray(vaobj))
+            {
+                Debug.LogError($"Cannot enable vertex attribute array '{vaobj}', as it is not a vertex array object.");
+                return;
+            }
+
+            // TODO: Check index against GL_MAX_VERTEX_ATTRIBUTES
+            // That will require glGet functionality.
+            // 16 is chosen b/c this is the minimum that can be reasonably expected. Virtually no system supports less,
+            // and many don't support more either.
+            // Only reason it's not a named constant here is because it'll be replaced by a glGet call later.
+            if (index > 16)
+            {
+                Debug.LogError($"Cannot enable vertex attribute array at index '{index}'; indices over 16 are unsupported.");
+                return;
+            }
+
+            _glEnableVertexArrayAttrib(vaobj, index);
+            GetError().LogIfError(e => $"Encountered OpenGL error `{e}` while attempting to enable the vertex attribute array "
+                                  + $"at index '{index}' This should be impossible; perhaps an earlier error went uncaught?");
+        }
+
+        /// <summary>
+        /// Define the layout of the data for a given vertex attribute array.
+        /// </summary>
+        /// <param name="index">The index of the vertex attribute array to define the data layout for.</param>
+        /// <param name="size">Specifies the number of components per vertex attribute. Must be 1, 2, 3, or 4.</param>
+        /// <param name="type">The data type of each component in the array.</param>
+        /// <param name="stride">The byte offset between consecutive vertex attributes.</param>
+        /// <param name="pointer">
+        /// Specifies the offset of the first component of the first vertex attribute in the array in the data store
+        /// of the buffer currently bound to the `GL_ARRAY_BUFFER` target.
+        /// </param>
+        public void SetVertexAttributeDataLayout(uint index, int size, VertexDataType type, uint stride, IntPtr pointer)
+        {
+            if (index > 16)
+            {
+                Debug.LogError($"Cannot define vertex attribute array data layout at index '{index}'; "
+                            + "indices over 16 are unsupported.");
+                return;
+            }
+            if (size < 1 || size > 4)
+            {
+                Debug.LogError($"Cannot define vertex attribute array data layout at index '{index}'; "
+                            + "`size` can only be 1, 2, 3, or 4.");
+                return;
+            }
+
+            // VertexAttribPointer (for floats) is hanbdled in an overload, due to the `normalized` argument.
+            if (type == VertexDataType.DOUBLE)
+                _glVertexAttribLPointer(index, size, type, stride, pointer);
+            else if (type != VertexDataType.FLOAT)
+                _glVertexAttribIPointer(index, size, type, stride, pointer);
+            else
+                Debug.LogError("Cannot set vertex attribute data layouts for single-precision floating point types "
+                    + "without a `normalized` boolean value being provided; an overload is available for this purpose.");
+
+            GetError().LogIfError(
+                e => $"Encountered OpenGL error `{e}` while attempting to define the data layout for the vertex attribute "
+                    + $"array at index '{index}'. "
+                    + e switch
+                    {
+                        ErrorCode.INVALID_OPERATION =>
+                            "This can be caused if no buffer object is currently bound and `pointer` was not NULL.",
+                        _ => "This should be impossible; perhaps an earlier error went uncaught?",
+                    }
+            );
+        }
+
+        // TODO: Gotta revisit the docs for `normalized` once I understand it more, make sure I can't word it better.
+        /// <summary>
+        /// Define the layout of the float data for a given vertex attribute array.
+        /// </summary>
+        /// <param name="index">The index of the vertex attribute array to define the data layout for.</param>
+        /// <param name="size">Specifies the number of components per vertex attribute. Must be 1, 2, 3, or 4.</param>
+        /// <param name="normalized">
+        /// Specifies whether fixed-point data values should be normalized or converted directly as fixed-point values
+        /// when accessed.
+        /// </param>
+        /// <param name="stride">The byte offset between consecutive vertex attributes.</param>
+        /// <param name="pointer">
+        /// Specifies the offset of the first component of the first vertex attribute in the array in the data store
+        /// of the buffer currently bound to the `GL_ARRAY_BUFFER` target.
+        /// </param>
+        public void SetVertexAttributeDataLayout(
+            uint index,
+            int size,
+            bool normalized,
+            uint stride,
+            IntPtr pointer)
+        {
+            if (index > 16)
+            {
+                Debug.LogError($"Cannot define vertex attribute array data layout at index '{index}'; "
+                            + "indices over 16 are unsupported.");
+                return;
+            }
+            if (size < 1 || size > 4)
+            {
+                Debug.LogError($"Cannot define vertex attribute array data layout at index '{index}'; "
+                            + "`size` can only be 1, 2, 3, or 4. (`GL_BGRA` is unsupported.)");
+                return;
+            }
+
+            _glVertexAttribPointer(index, size, VertexDataType.FLOAT, normalized, stride, pointer);
+            GetError().LogIfError(
+                e => $"Encountered OpenGL error `{e}` while attempting to define the data layout for the vertex attribute "
+                    + $"array at index '{index}'. "
+                    + e switch
+                    {
+                        ErrorCode.INVALID_OPERATION =>
+                            "This can be caused if no buffer object is currently bound and `pointer` was not NULL.",
+                        _ => "This should be impossible; perhaps an earlier error went uncaught?",
+                    }
+            );
+        }
+
+        /// <summary>
+        /// Disable a given OpenGL vertex attribute array at `index` using the currently bound
+        /// Vertex Array Object.
+        /// </summary>
+        /// <param name="index">The index of the vertex attribute array to disable. Values over 16 are not supported.</param>
+        public void DisableVertexAttribArray(uint index)
+        {
+            // TODO: Check index against GL_MAX_VERTEX_ATTRIBUTES
+            // That will require glGet functionality.
+            // 16 is chosen b/c this is the minimum that can be reasonably expected. Virtually no system supports less,
+            // and many don't support more either.
+            // Only reason it's not a named constant here is because it'll be replaced by a glGet call later.
+            if (index > 16)
+            {
+                Debug.LogError($"Cannot disable vertex attribute array at index '{index}'; indices over 16 are unsupported.");
+                return;
+            }
+
+            _glDisableVertexAttribArray(index);
+            GetError().LogIfError(
+                e => $"Encountered OpenGL error `{e}` while attempting to disable the vertex attribute array at index '{index}'. "
+                    + e switch
+                    {
+                        ErrorCode.INVALID_OPERATION => "This can be caused if no vertex array object is currently bound.",
+                        _ => "This should be impossible; perhaps an earlier error went uncaught?",
+                    }
+            );
+        }
+
+        /// <summary>
+        /// Disable a given OpenGL vertex attribute array at `index`, using the Vertex Attribute Object
+        /// specified by `vaobj`.
+        /// </summary>
+        /// <param name="vaobj">The Vertex Attribute Object to use.</param>
+        /// <param name="index">The index of the vertex attribute array to disable. Values over 16 are not supported.</param>
+        public void DisableVertexAttribArray(uint vaobj, uint index)
+        {
+            if (!IsVertexArray(vaobj))
+            {
+                Debug.LogError($"Cannot disable vertex attribute array '{vaobj}', as it is not a vertex array object.");
+                return;
+            }
+
+            // TODO: Check index against GL_MAX_VERTEX_ATTRIBUTES
+            // That will require glGet functionality.
+            // 16 is chosen b/c this is the minimum that can be reasonably expected. Virtually no system supports less,
+            // and many don't support more either.
+            // Only reason it's not a named constant here is because it'll be replaced by a glGet call later.
+            if (index > 16)
+            {
+                Debug.LogError($"Cannot disable vertex attribute array at index '{index}'; indices over 16 are unsupported.");
+                return;
+            }
+
+            _glDisableVertexArrayAttrib(vaobj, index);
+            GetError().LogIfError(e => $"Encountered OpenGL error `{e}` while attempting to disable the vertex attribute array "
+                                  + $"at index '{index}' This should be impossible; perhaps an earlier error went uncaught?");
+        }
+
+        #endregion
+
+        #region Vertex Arrays
+
+        // TODO: Update the namesOnly = false variant of this method to only work in 4.5+ contexts
+        /// <summary>
+        /// Generate identifiers for one or more OpenGL Vertex Array Objects and store them in an array.
+        /// 
+        /// If this Renderer is using a 4.5 or higher OpenGL context, this method can also
+        /// create VAOs to fill these identifiers at the same time, provided `createObjects` is true.
+        /// </summary>
+        /// <param name="amount">The amount of names to generate.</param>
+        /// <param name="createObjects">
+        /// If this is true, Vertex Array Objects will also be created to fill the generated identifiers.
+        /// </param>
+        /// <returns>An array containing the generated Vertex Array Object identifiers.
+        /// No objects will be created with these identifiers if `namesOnly` was true.</returns>
+        public uint[] GenVertexArrays(uint amount, bool createObjects = false)
+        {
+            uint[] vaos = new uint[amount];
+            if (!createObjects)
+                _glGenVertexArrays(amount, vaos);
+            else
+                _glCreateVertexArrays(amount, vaos);
+            return vaos;
+        }
+
+        /// <summary>
+        /// Binds a given OpenGL Vertex Array Object identifier, creating an object for it if necessary.
+        /// </summary>
+        /// <param name="array">The Vertex Array Object identifier to bind.</param>
+        public void BindVertexArray(uint array)
+        {
+            // TODO: Need wrapper type for safety b/c IsVertexArray won't work if the name was generated
+            // but the object not created (which you can only completely avoid in 4.5+ contexts)
+            _glBindVertexArray(array);
+            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while binding VAO '{array}'. "
+                                  + "This should be impossible; perhaps an earlier error went uncaught?");
+        }
+
+        /// <summary>
+        /// Unbinds any Vertex Array Object currently bound to this OpenGL context.
+        /// </summary>
+        public void UnbindVertexArray() => BindVertexArray(0);
+
+        /// <summary>
+        /// Deletes each OpenGL Vertex Array Object in a given array of them.
+        /// </summary>
+        /// <param name="vaos">An array of Vertex Array Objects to delete.</param>
+        public void DeleteVertexArrays(uint[] vaos)
+        {
+            uint[] invalidVAOs = vaos.Where(item => !IsVertexArray(item)).ToArray();
+            if (invalidVAOs.Length > 0)
+            {
+                Debug.LogWarning("Cannot delete some elements of an array of VAOs, as some were not valid VAOs "
+                    + $"(other elements of the array will still be deleted): [" + string.Join(", ", invalidVAOs)
+                    + "] (Did you make sure to create them first?)");
+            }
+
+            _glDeleteVertexArrays((uint)vaos.Length, vaos);
+            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while deleting an array of VAOs. "
+                                  + "This should be impossible; perhaps an earlier error went uncaught?");
+        }
+
+        // TODO: All the IsXYZ functions could probably be rendered unnecessary by refactoring the functions
+        // that use them to instead require wrapper types? Idk. Investigate this.
+        // HAHA GET IT? RENDERED? HA HA HA HA HA
+        /// <summary>
+        /// Checks whether a given OpenGL object is a vertex array.
+        /// </summary>
+        /// <param name="objectId">The OpenGL object ID to check. If this is zero,
+        /// this function will *always* return false.</param>
+        /// <returns>Whether or not the OpenGL object was a vertex array.</returns>
+        public bool IsVertexArray(uint objectId) => _glIsVertexArray(objectId);
+
+        #endregion
+
         /// <summary>
         /// Clear the given OpenGL buffers and reset them to preset values.
         /// </summary>
         /// <param name="mask">A bitmask of the buffers to clear.</param>
-        public void Clear(GLClearMask mask) => _glClear(mask);
+        public void Clear(ClearMask mask)
+        {
+            _glClear(mask);
+            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while clearing buffer bit(s). "
+                                  + "This should be impossible; perhaps an earlier error went uncaught?");
+        }
 
         /// <summary>
         /// Set the clear values for the OpenGL color buffers.
@@ -751,8 +1072,48 @@ namespace Vectoray.Rendering
         /// <param name="green">The green value to use.</param>
         /// <param name="blue">The blue value to use.</param>
         /// <param name="alpha">The alpha value to use.</param>
-        public void ClearColor(float red, float green, float blue, float alpha) =>
+        public void ClearColor(float red, float green, float blue, float alpha)
+        {
             _glClearColor(red, green, blue, alpha);
+            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while setting the OpenGL clear color. "
+                                  + "This should be impossible; perhaps an earlier error went uncaught?");
+        }
+
+        /// <summary>
+        /// Render primitives using data pre-specified via buffer objects in connection with vertex attributes.
+        /// </summary>
+        /// <param name="mode">The rendering mode to use.</param>
+        /// <param name="start">The index to start at in the vertex data array.</param>
+        /// <param name="count">The amount of vertices to read from after (and including) `start`.</param>
+        public void DrawArrays(DrawMode mode, int start, uint count)
+        {
+            _glDrawArrays(mode, start, count);
+            GetError().LogIfError(
+                e => $"Encountered OpenGL error `{e}` while attempting to use glDrawArrays using mode `{mode}`. " + e switch
+                {
+                    ErrorCode.INVALID_OPERATION
+                        => "\nThis can be caused if the data store of a buffer object bound to an enabled array "
+                        + "is currently mapped, or if a geometry shader is active and the abovementioned mode is "
+                        + "incompatible with its input primitive type. Lastly, this can also occur if no VAO was used, as "
+                        + "VAOs are non-optional in strict OpenGL contexts.",
+                    _ => "This should be impossible; perhaps an earlier error went uncaught?",
+                }
+            );
+        }
+
+        /// <summary>
+        /// Sets the dimensions of the OpenGL viewport for this context.
+        /// </summary>
+        /// <param name="x">The X-axis position of the lower-left corner of the viewport.</param>
+        /// <param name="y">The Y-axis position of the lower-left corner of the viewport.</param>
+        /// <param name="width">The width of the viewport.</param>
+        /// <param name="height">The height of the viewport.</param>
+        public void SetViewportDimensions(int x, int y, uint width, uint height)
+        {
+            _glViewport(x, y, width, height);
+            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while setting the OpenGL viewport "
+                                  + "dimensions. This should be impossible; perhaps an earlier error went uncaught?");
+        }
 
         #endregion
 
@@ -772,22 +1133,22 @@ namespace Vectoray.Rendering
             return Marshal.GetDelegateForFunctionPointer<T>(SDL_GL_GetProcAddress(funcName));
         }
 
-        #region Debugging
+        #region Debugging and querying
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate ErrorCode glGetError();
         private readonly glGetError _glGetError;
 
+        // This also serves as glGetStringi since `index` appears to go unused if `name` isn't GL_EXTENSIONS.
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate IntPtr glGetString(ConnectionInfo name);
+        private delegate IntPtr glGetString(ConnectionInfo name, uint index = 0);
         private readonly glGetString _glGetString;
 
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate IntPtr glGetStringi(ConnectionInfo name, int index);
-        // glGetString includes glGetStringi, but delegates cannot be overloaded,
-        // and the delegates cannot be combined because glGetStringi only accepts one type of
-        // GLConnectionInfo value.
-        private readonly glGetStringi _glGetStringi;
+        // TODO: glGet functionality. That'll probably take a while, since there's like ten of them
+        // and they have absolute shitloads of accepted constants, of which all delegates can query
+        // but which are usually meant for a specific one.
+        // (i.e., it's totally valid to query an integer with glGetBooleanv, but it'll be converted to a boolean.
+        // and you should be using glGetIntegerv.)
 
         #endregion
 
@@ -884,12 +1245,16 @@ namespace Vectoray.Rendering
         private delegate void glGenBuffers(uint n, [Out] uint[] buffers);
         private readonly glGenBuffers _glGenBuffers;
 
+        // TODO: If I write a buffer object wrapper type, maybe I can find a way to make a inner type
+        // that implements IDisposable, such that you can bind it via 'using' blocks only, or through other
+        // funcs that do that for you? That way you can safely assume buffer objects will always be unbound afterward.
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void glBindBuffer(BufferTarget target, uint buffer);
         private readonly glBindBuffer _glBindBuffer;
 
+        // object[] doesn't work here TODO:
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate void glBufferData(BufferTarget target, int size, object[] data, BufferUsageHint usage);
+        private delegate void glBufferData(BufferTarget target, int size, float[] data, BufferUsageHint usage);
         private readonly glBufferData _glBufferData;
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -906,13 +1271,106 @@ namespace Vectoray.Rendering
 
         #endregion
 
+        #region Vertex attributes
+
+        // For reference, an attribute index is usually defined using layout(location = x) in GLSL.
+        // That said, it's also possible not to specify them and instead later retrieve whatever
+        // was automatically picked using glGetAttribLocation, although Vectoray does not currently support this.
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate void glClear(GLClearMask mask);
+        private delegate void glEnableVertexAttribArray(uint index);
+        private readonly glEnableVertexAttribArray _glEnableVertexAttribArray;
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glEnableVertexArrayAttrib(uint vaobj, uint index);
+        private readonly glEnableVertexArrayAttrib _glEnableVertexArrayAttrib;
+
+        // The difference between the below three functions is in the types the shader expects.
+        // For single-precision floating point types, the regular VertexAttribPointer is used.
+        // For integer types, VertexAttribIPointer is used.
+        // Finally, for doubles (or types that use them such as dvec3), VertexAttribLPointer is used.
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glVertexAttribPointer(
+            uint index,
+            int size,
+            VertexDataType type,
+            bool normalized,
+            uint stride,
+            IntPtr pointer
+        );
+        private readonly glVertexAttribPointer _glVertexAttribPointer;
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glVertexAttribIPointer(
+            uint index,
+            int size,
+            VertexDataType type,
+            uint stride,
+            IntPtr pointer
+        );
+        private readonly glVertexAttribIPointer _glVertexAttribIPointer;
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glVertexAttribLPointer(
+            uint index,
+            int size,
+            VertexDataType type,
+            uint stride,
+            IntPtr pointer
+        );
+        private readonly glVertexAttribLPointer _glVertexAttribLPointer;
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glDisableVertexAttribArray(uint index);
+        private readonly glDisableVertexAttribArray _glDisableVertexAttribArray;
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glDisableVertexArrayAttrib(uint vaobj, uint index);
+        private readonly glDisableVertexArrayAttrib _glDisableVertexArrayAttrib;
+
+        #endregion
+
+        #region Vertex Arrays
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glGenVertexArrays(uint n, [Out] uint[] arrays);
+        private readonly glGenVertexArrays _glGenVertexArrays;
+
+        // The difference between glGenXYZ and glCreateXYZ is that GenXYZ only creates an identifier that that type
+        // of object can use - it doesn't create one. The latter, as you might guess, creates one to fill that identifier
+        // as well. (Usually, glBindXYZ creates the objects when called if they don't exist)
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glCreateVertexArrays(uint n, [Out] uint[] arrays);
+        private readonly glCreateVertexArrays _glCreateVertexArrays;
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glBindVertexArray(uint array);
+        private readonly glBindVertexArray _glBindVertexArray;
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glDeleteVertexArrays(uint n, uint[] buffers);
+        private readonly glDeleteVertexArrays _glDeleteVertexArrays;
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate bool glIsVertexArray(uint array);
+        private readonly glIsVertexArray _glIsVertexArray;
+
+        #endregion
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glClear(ClearMask mask);
         private readonly glClear _glClear;
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void glClearColor(float red, float green, float blue, float alpha);
         private readonly glClearColor _glClearColor;
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glDrawArrays(DrawMode mode, int first, uint count);
+        private readonly glDrawArrays _glDrawArrays;
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glViewport(int x, int y, uint width, uint height);
+        private readonly glViewport _glViewport;
 
         #endregion
     }
