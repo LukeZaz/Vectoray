@@ -123,6 +123,7 @@ namespace Vectoray.Rendering
             _glIsProgram = GetDelegate<glIsProgram>();
 
             _glGenBuffers = GetDelegate<glGenBuffers>();
+            _glCreateBuffers = GetDelegate<glCreateBuffers>();
             _glBindBuffer = GetDelegate<glBindBuffer>();
             _glBufferData = GetDelegate<glBufferData>();
             _glNamedBufferData = GetDelegate<glNamedBufferData>();
@@ -624,13 +625,23 @@ namespace Vectoray.Rendering
 
         /// <summary>
         /// Generate identifiers for one or more OpenGL buffer objects and store them in an array.
+        /// 
+        /// If this Renderer is using a 4.5 or higher OpenGL context, this method can also
+        /// create buffer objects to fill these identifiers at the same time, provided `createObjects` is true.
         /// </summary>
-        /// <param name="amount">The amount of buffer objects to create.</param>
-        /// <returns>An array containing the generated buffer identifiers.</returns>
-        public uint[] GenBuffers(uint amount)
+        /// <param name="amount">The amount of identifiers to generate.</param>
+        /// <param name="createObjects">
+        /// If this is true, buffer objects will also be created to fill the generated identifiers.
+        /// </param>
+        /// <returns>An array containing the generated buffer object identifiers.
+        /// No objects will be created with these identifiers if `createObjects` was false.</returns>
+        public uint[] GenBuffers(uint amount, bool createObjects = false)
         {
             uint[] buffers = new uint[amount];
-            _glGenBuffers(amount, buffers);
+            if (!createObjects)
+                _glGenBuffers(amount, buffers);
+            else
+                _glCreateBuffers(amount, buffers);
             return buffers;
         }
 
@@ -667,8 +678,7 @@ namespace Vectoray.Rendering
         /// 
         /// [unmanaged]: https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/unmanaged-types
         /// </typeparam>
-        public void SetBufferData<T>(BufferTarget target, float[] data, BufferUsageHint usage)
-            where T : unmanaged
+        public void SetBufferData(BufferTarget target, float[] data, BufferUsageHint usage)
         {
             // It might be better to instead convert the data to a series of IntPtrs and pass those,
             // but really I'm not sure if it matters, and this is far simpler.
@@ -682,8 +692,8 @@ namespace Vectoray.Rendering
                             + " `GL_BUFFER_IMMUTABLE_STORAGE` flag is enabled for the buffer.",
                         ErrorCode.OUT_OF_MEMORY
                             => "This can be caused if OpenGL was unable to create a data store with the specified byte size "
-                            + $"of `{Marshal.SizeOf<T>() * data.Length}` "
-                            + $"(type size of {Marshal.SizeOf<T>()} * array length of {data.Length}).",
+                            + $"of `{Marshal.SizeOf<float>() * data.Length}` "
+                            + $"(type size of {Marshal.SizeOf<float>()} * array length of {data.Length}).",
                         _ => "This should be impossible; perhaps an earlier error went uncaught?",
                     }
             );
@@ -979,7 +989,7 @@ namespace Vectoray.Rendering
 
         #region Vertex Arrays
 
-        // TODO: Update the namesOnly = false variant of this method to only work in 4.5+ contexts
+        // TODO: Update the createObjects = true variant of this method to only work in 4.5+ contexts
         /// <summary>
         /// Generate identifiers for one or more OpenGL Vertex Array Objects and store them in an array.
         /// 
@@ -991,7 +1001,7 @@ namespace Vectoray.Rendering
         /// If this is true, Vertex Array Objects will also be created to fill the generated identifiers.
         /// </param>
         /// <returns>An array containing the generated Vertex Array Object identifiers.
-        /// No objects will be created with these identifiers if `namesOnly` was true.</returns>
+        /// No objects will be created with these identifiers if `createObjects` was false.</returns>
         public uint[] GenVertexArrays(uint amount, bool createObjects = false)
         {
             uint[] vaos = new uint[amount];
@@ -1244,6 +1254,10 @@ namespace Vectoray.Rendering
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void glGenBuffers(uint n, [Out] uint[] buffers);
         private readonly glGenBuffers _glGenBuffers;
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void glCreateBuffers(uint n, [Out] uint[] buffers);
+        private readonly glCreateBuffers _glCreateBuffers;
 
         // TODO: If I write a buffer object wrapper type, maybe I can find a way to make a inner type
         // that implements IDisposable, such that you can bind it via 'using' blocks only, or through other
