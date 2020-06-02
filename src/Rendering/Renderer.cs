@@ -59,6 +59,11 @@ namespace Vectoray.Rendering
         private readonly IntPtr window;
 
         /// <summary>
+        /// The version of OpenGL this renderer's inner OpenGL context supports.
+        /// </summary>
+        public readonly GLVersion contextVersion;
+
+        /// <summary>
         /// Whether or not this renderer's inner OpenGL context is current.
         /// </summary>
         public bool IsCurrentContext
@@ -83,11 +88,6 @@ namespace Vectoray.Rendering
                 return currentContext == context;
             }
         }
-
-        /// <summary>
-        /// The version of OpenGL this renderer's inner OpenGL context supports.
-        /// </summary>
-        public readonly GLVersion contextVersion;
 
         #endregion
 
@@ -657,25 +657,50 @@ namespace Vectoray.Rendering
 
         /// <summary>
         /// Generate identifiers for one or more OpenGL buffer objects and store them in an array.
-        /// 
-        /// If this Renderer is using a 4.5 or higher OpenGL context, this method can also
-        /// create buffer objects to fill these identifiers at the same time, provided `createObjects` is true.
         /// </summary>
         /// <param name="amount">The amount of identifiers to generate.</param>
-        /// <param name="createObjects">
-        /// If this is true, buffer objects will also be created to fill the generated identifiers.
-        /// </param>
-        /// <returns>An array containing the generated buffer object identifiers.
-        /// No objects will be created with these identifiers if `createObjects` was false.</returns>
-        public uint[] GenBuffers(uint amount, bool createObjects = false)
+        /// <returns>An array containing the generated buffer object identifiers.</returns>
+        public uint[] GenBuffers(uint amount)
         {
             uint[] buffers = new uint[amount];
-            if (!createObjects)
-                _glGenBuffers(amount, buffers);
-            else
-                _glCreateBuffers(amount, buffers);
+            _glGenBuffers(amount, buffers);
             return buffers;
         }
+
+        /// <summary>
+        /// Generates an identifier for an OpenGL buffer object.
+        /// </summary>
+        /// <returns>The buffer object identifier generated.</returns>
+        public uint GenBuffer() => GenBuffers(1)[0];
+
+        /// <summary>
+        /// Generate identifiers for and then initialize one or more OpenGL buffer objects and store them in
+        /// an array. Cannot be used if this renderer does not support OpenGL 4.5 or higher.
+        /// </summary>
+        /// <param name="amount">The amount of buffer objects to create.</param>
+        /// <returns>A `Some` wrapping an array containing the generated buffer object identifiers, unless
+        /// OpenGL 4.5 or higher is unsupported, in which case a `None` instance is returned instead.</returns>
+        public Opt<uint[]> CreateBuffers(uint amount)
+        {
+            if (contextVersion < GLVersion.GL_4_5)
+            {
+                Debug.LogError("Cannot call Renderer.CreateBuffers when the OpenGL context it uses precedes "
+                    + $"OpenGL 4.5. (current version is {contextVersion.AsString()})");
+                return new None<uint[]>();
+            }
+
+            uint[] buffers = new uint[amount];
+            _glCreateBuffers(amount, buffers);
+            return buffers;
+        }
+
+        /// <summary>
+        /// Generates an identifier for and then initializes an OpenGL buffer object.
+        /// Cannot be used if this renderer does not support OpenGL 4.5 or higher.
+        /// </summary>
+        /// <returns>A `Some` wrapping the generated buffer object identifier, unless
+        /// OpenGL 4.5. or higher is unsupported, in which case a `None` instance is returned instead.</returns>
+        public Opt<uint> CreateBuffer() => CreateBuffers(1).Map(item => item[0]);
 
         /// <summary>
         /// Binds a given OpenGL buffer object to one of the various buffer targets.
@@ -1021,28 +1046,52 @@ namespace Vectoray.Rendering
 
         #region Vertex Arrays
 
-        // TODO: Update the createObjects = true variant of this method to only work in 4.5+ contexts
         /// <summary>
-        /// Generate identifiers for one or more OpenGL Vertex Array Objects and store them in an array.
-        /// 
-        /// If this Renderer is using a 4.5 or higher OpenGL context, this method can also
-        /// create VAOs to fill these identifiers at the same time, provided `createObjects` is true.
+        /// Generate identifiers for one or more OpenGL vertex array objects and store them in an array.
         /// </summary>
-        /// <param name="amount">The amount of names to generate.</param>
-        /// <param name="createObjects">
-        /// If this is true, Vertex Array Objects will also be created to fill the generated identifiers.
-        /// </param>
-        /// <returns>An array containing the generated Vertex Array Object identifiers.
-        /// No objects will be created with these identifiers if `createObjects` was false.</returns>
-        public uint[] GenVertexArrays(uint amount, bool createObjects = false)
+        /// <param name="amount">The amount of identifiers to generate.</param>
+        /// <returns>An array containing the generated vertex array object identifiers.</returns>
+        public uint[] GenVertexArrays(uint amount)
         {
             uint[] vaos = new uint[amount];
-            if (!createObjects)
-                _glGenVertexArrays(amount, vaos);
-            else
-                _glCreateVertexArrays(amount, vaos);
+            _glGenVertexArrays(amount, vaos);
             return vaos;
         }
+
+        /// <summary>
+        /// Generates an identifier for an OpenGL vertex array object.
+        /// </summary>
+        /// <returns>The vertex array object identifier generated.</returns>
+        public uint GenVertexArray() => GenVertexArrays(1)[0];
+
+        /// <summary>
+        /// Generate identifiers for and then initialize one or more OpenGL vertex array objects and store them in
+        /// an array. Cannot be used if this renderer does not support OpenGL 4.5 or higher.
+        /// </summary>
+        /// <param name="amount">The amount of vertex array objects to create.</param>
+        /// <returns>A `Some` wrapping an array containing the generated vertex array object identifiers, unless
+        /// OpenGL 4.5 or higher is unsupported, in which case a `None` instance is returned instead.</returns>
+        public Opt<uint[]> CreateVertexArrays(uint amount)
+        {
+            if (contextVersion < GLVersion.GL_4_5)
+            {
+                Debug.LogError("Cannot call Renderer.CreateVertexArrays when the OpenGL context it uses precedes "
+                    + $"OpenGL 4.5. (current version is {contextVersion.AsString()})");
+                return new None<uint[]>();
+            }
+
+            uint[] vaos = new uint[amount];
+            _glCreateVertexArrays(amount, vaos);
+            return vaos;
+        }
+
+        /// <summary>
+        /// Generates an identifier for and then initializes an OpenGL vertex array object.
+        /// Cannot be used if this renderer does not support OpenGL 4.5 or higher.
+        /// </summary>
+        /// <returns>A `Some` wrapping the generated vertex array object identifier, unless
+        /// OpenGL 4.5. or higher is unsupported, in which case a `None` instance is returned instead.</returns>
+        public Opt<uint> CreateVertexArray() => CreateVertexArrays(1).Map(item => item[0]);
 
         /// <summary>
         /// Binds a given OpenGL Vertex Array Object identifier, creating an object for it if necessary.
