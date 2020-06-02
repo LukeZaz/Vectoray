@@ -84,6 +84,11 @@ namespace Vectoray.Rendering
             }
         }
 
+        /// <summary>
+        /// The version of OpenGL this renderer's inner OpenGL context supports.
+        /// </summary>
+        public readonly GLVersion contextVersion;
+
         #endregion
 
         #region Lifecycle functionality (constructors, finalizers, etc)
@@ -94,6 +99,33 @@ namespace Vectoray.Rendering
         private Renderer(IntPtr context, IntPtr window)
         {
             (this.context, this.window) = (context, window);
+
+            SDL_GL_GetAttribute(SDL_GLattr.SDL_GL_CONTEXT_MAJOR_VERSION, out int major);
+            SDL_GL_GetAttribute(SDL_GLattr.SDL_GL_CONTEXT_MINOR_VERSION, out int minor);
+            contextVersion = (major, minor) switch
+            {
+                (1, 0) => GLVersion.GL_1_0,
+                (1, 1) => GLVersion.GL_1_1,
+                (1, 2) => GLVersion.GL_1_2,
+                (1, 3) => GLVersion.GL_1_3,
+                (1, 4) => GLVersion.GL_1_4,
+                (1, 5) => GLVersion.GL_1_5,
+                (2, 0) => GLVersion.GL_2_0,
+                (2, 1) => GLVersion.GL_2_1,
+                (3, 0) => GLVersion.GL_3_0,
+                (3, 1) => GLVersion.GL_3_1,
+                (3, 2) => GLVersion.GL_3_2,
+                (3, 3) => GLVersion.GL_3_3,
+                (4, 0) => GLVersion.GL_4_0,
+                (4, 1) => GLVersion.GL_4_1,
+                (4, 2) => GLVersion.GL_4_2,
+                (4, 3) => GLVersion.GL_4_3,
+                (4, 4) => GLVersion.GL_4_4,
+                (4, 5) => GLVersion.GL_4_5,
+                (4, 6) => GLVersion.GL_4_6,
+                _ => throw new ArgumentException(
+                    "Encountered unrecognized OpenGL version during Renderer creation - this should be impossible!")
+            };
 
             // TODO: Don't bother loading function delegates this context can't support anyways, e.g.
             // glNamedBufferData for a < GL4.5 context.
