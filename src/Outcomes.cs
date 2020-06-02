@@ -391,6 +391,8 @@ namespace Vectoray
         // Likewise, the reasons for the access modifier are the same as Result<T, E> as well.
         private protected Opt() { }
 
+        public static implicit operator Opt<T>(T value) => value.Some();
+
         /// <summary>
         /// Attempt to unwrap this option and retrieve the value inside.
         /// 
