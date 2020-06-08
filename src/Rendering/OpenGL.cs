@@ -88,42 +88,532 @@ namespace Vectoray.Rendering.OpenGL
         SHADING_LANGUAGE_VERSION = 0x8B8C,
     }
 
+    #region glGet queries
+
     /// <summary>
-    /// An enum of the various OpenGL buffer target values.
+    /// An enum of the various OpenGL boolean state variables that can be queried via `glGetBooleanv`.
     /// </summary>
-    public enum BufferTarget
+    public enum BooleanQuery
     {
-        ARRAY_BUFFER = 0x8892,
-        ELEMENT_ARRAY_BUFFER = 0x8893,
-        PIXEL_PACK_BUFFER = 0x88EB,
-        PIXEL_UNPACK_BUFFER = 0x88EC,
-        UNIFORM_BUFFER = 0x8A11,
-        TEXTURE_BUFFER = 0x8C2A,
-        TRANSFORM_FEEDBACK_BUFFER = 0x8C8E,
-        COPY_READ_BUFFER = 0x8F36,
-        COPY_WRITE_BUFFER = 0x8F37,
-        DRAW_INDIRECT_BUFFER = 0x8F3F,
-        SHADER_STORAGE_BUFFER = 0x90D2,
-        DISPATCH_INDIRECT_BUFFER = 0x90EE,
-        QUERY_BUFFER = 0x9192,
-        ATOMIC_COUNTER_BUFFER = 0x92C0,
+        // Uncategorized
+        TRANSFORM_FEEDBACK_PAUSED = 0x8E23,
+        TRANSFORM_FEEDBACK_ACTIVE = 0x8E24,
+
+        DEBUG_OUTPUT_SYNCHRONOUS = 0x8242,
+        DEBUG_OUTPUT = 0x92E0,
+
+        TEXTURE_CUBE_MAP_SEAMLESS = 0x884F,
+        SHADER_COMPILER = 0x8DFA,
+
+        // Framebuffers
+        DEPTH_TEST = 0x0B71,
+        DEPTH_WRITEMASK = 0x0B72,
+        STENCIL_TEST = 0x0B90,
+        COLOR_WRITEMASK = 0x0C23,
+        DOUBLEBUFFER = 0x0C32,
+        STEREO = 0x0C33,
+
+        // Multisampling
+        MULTISAMPLE = 0x809D,
+        SAMPLE_ALPHA_TO_COVERAGE = 0x809E,
+        SAMPLE_ALPHA_TO_ONE = 0x809F,
+        SAMPLE_COVERAGE = 0x80A0,
+        SAMPLE_COVERAGE_INVERT = 0x80AB,
+        SAMPLE_MASK = 0x8E51,
+
+        // Pixel Operations
+        DITHER = 0x0BD0,
+        BLEND = 0x0BE2,
+        COLOR_LOGIC_OP = 0x0BF2,
+
+        // Pixel Transfer Operations
+        UNPACK_SWAP_BYTES = 0x0CF0,
+        UNPACK_LSB_FIRST = 0x0CF1,
+        PACK_SWAP_BYTES = 0x0D00,
+        PACK_LSB_FIRST = 0x0D01,
+
+        // Rasterization
+        LINE_SMOOTH = 0x0B20,
+        POLYGON_SMOOTH = 0x0B41,
+        CULL_FACE = 0x0B44,
+        POLYGON_OFFSET_POINT = 0x2A01,
+        POLYGON_OFFSET_LINE = 0x2A02,
+        POLYGON_OFFSET_FILL = 0x8037,
+        PROGRAM_POINT_SIZE = 0x8642,
+        RASTERIZER_DISCARD = 0x8C89,
+
+        // Transformation State
+        CLIP_DISTANCE0 = 0x3000,
+        CLIP_DISTANCE1 = 0x3001,
+        CLIP_DISTANCE2 = 0x3002,
+        CLIP_DISTANCE3 = 0x3003,
+        CLIP_DISTANCE4 = 0x3004,
+        CLIP_DISTANCE5 = 0x3005,
+        CLIP_DISTANCE6 = 0x3006,
+        CLIP_DISTANCE7 = 0x3007,
+        DEPTH_CLAMP = 0x864F,
+
+        // Vertex Arrays
+        PRIMITIVE_RESTART_FOR_PATCHES_SUPPORTED = 0x8221,
+        PRIMITIVE_RESTART_FIXED_INDEX = 0x8D69,
+        PRIMITIVE_RESTART = 0x8F9D,
     }
 
     /// <summary>
-    /// An enum of the various usage hints that can be provided to OpenGL regarding buffer object data stores.
+    /// An enum of the various OpenGL single-precision floating point state variables that can be queried via `glGetFloatv`.
     /// </summary>
-    public enum BufferUsageHint
+    public enum FloatQuery
     {
-        STREAM_DRAW = 0x88E0,
-        STREAM_READ = 0x88E1,
-        STREAM_COPY = 0x88E2,
-        STATIC_DRAW = 0x88E4,
-        STATIC_READ = 0x88E5,
-        STATIC_COPY = 0x88E6,
-        DYNAMIC_DRAW = 0x88E8,
-        DYNAMIC_READ = 0x88E9,
-        DYNAMIC_COPY = 0x88EA,
+        // Uncategorized
+        DEPTH_CLEAR_VALUE = 0x0B73,
+        COLOR_CLEAR_VALUE = 0x0C22,
+        SAMPLE_COVERAGE_VALUE = 0x80AA,
+        BLEND_COLOR = 0x8005,
+        MAX_TEXTURE_LOD_BIAS = 0x84FD,
+
+        // Rasterization
+        POINT_SIZE = 0x0B11,
+        POINT_SIZE_RANGE = 0x0B12,
+        POINT_SIZE_GRANULARITY = 0x0B13,
+        LINE_WIDTH = 0x0B21,
+        SMOOTH_LINE_WIDTH_RANGE = 0x0B22,
+        SMOOTH_LINE_WIDTH_GRANULARITY = 0x0B23,
+        POLYGON_OFFSET_UNITS = 0x2A00,
+        POLYGON_OFFSET_FACTOR = 0x8038,
+        POINT_FADE_THRESHOLD_SIZE = 0x8128,
+        ALIASED_LINE_WIDTH_RANGE = 0x846E,
+
+        // Shader Execution
+        MIN_FRAGMENT_INTERPOLATION_OFFSET = 0x8E5B,
+        MAX_FRAGMENT_INTERPOLATION_OFFSET = 0x8E5C,
+
+        // Tessellation Control Shaders
+        PATCH_DEFAULT_INNER_LEVEL = 0x8E73,
+        PATCH_DEFAULT_OUTER_LEVEL = 0x8E74,
+
+        // Transformation State
+        DEPTH_RANGE = 0x0B70,
+        MAX_VIEWPORT_DIMS = 0x0D3A,
+        VIEWPORT_BOUNDS_RANGE = 0x825D,
     }
+
+    /// <summary>
+    /// An enum of the various OpenGL 32-bit integer state variables that can be queried via `glGetIntegerv`.
+    /// </summary>
+    public enum IntegerQuery
+    {
+        // Uncategorized
+        FRAGMENT_INTERPOLATION_OFFSET_BITS = 0x8E5D,
+        MIN_MAP_BUFFER_ALIGNMENT = 0x90BC,
+
+        // Context info
+        MAJOR_VERSION = 0x821B,
+        MINOR_VERSION = 0x821C,
+        NUM_EXTENSIONS = 0x821D,
+        CONTEXT_FLAGS = 0x821E,
+        NUM_SHADING_LANGUAGE_VERSIONS = 0x82E9,
+
+        // Buffer binding info
+        VERTEX_ARRAY_BINDING = 0x85B5,
+        ARRAY_BUFFER_BINDING = 0x8894,
+        ELEMENT_ARRAY_BUFFER_BINDING = 0x8895,
+        VERTEX_ATTRIB_ARRAY_BUFFER_BINDING = 0x889F,
+        UNIFORM_BUFFER_BINDING = 0x8A28,
+        TEXTURE_BUFFER_BINDING = 0x8C2A,
+        TRANSFORM_FEEDBACK_BUFFER_BINDING = 0x8C8F,
+        COPY_READ_BUFFER_BINDING = 0x8F36,
+        COPY_WRITE_BUFFER_BINDING = 0x8F37,
+        DRAW_INDIRECT_BUFFER_BINDING = 0x8F43,
+        SHADER_STORAGE_BUFFER_BINDING = 0x90D3,
+        QUERY_BUFFER_BINDING = 0x9193,
+        ATOMIC_COUNTER_BUFFER_BINDING = 0x92C1,
+
+        MAX_UNIFORM_BUFFER_BINDINGS = 0x8A2F,
+        MAX_TRANSFORM_FEEDBACK_BUFFERS = 0x8E70,
+        MAX_SHADER_STORAGE_BUFFER_BINDINGS = 0x90DD,
+        MAX_ATOMIC_COUNTER_BUFFER_BINDINGS = 0x92DC,
+
+        MAX_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS = 0x8C80,
+        MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS = 0x8C8A,
+        MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS = 0x8C8B,
+
+        // Debug output info
+        DEBUG_NEXT_LOGGED_MESSAGE_LENGTH = 0x8243,
+        DEBUG_GROUP_STACK_DEPTH = 0x826D,
+        MAX_DEBUG_GROUP_STACK_DEPTH = 0x826C,
+        MAX_LABEL_LENGTH = 0x82E8,
+        MAX_DEBUG_MESSAGE_LENGTH = 0x9143,
+        MAX_DEBUG_LOGGED_MESSAGES = 0x9144,
+        DEBUG_LOGGED_MESSAGES = 0x9145,
+
+        // Hints
+        LINE_SMOOTH_HINT = 0x0C52,
+        POLYGON_SMOOTH_HINT = 0x0C53,
+        TEXTURE_COMPRESSION_HINT = 0x84EF,
+        FRAGMENT_SHADER_DERIVATIVE_HINT = 0x8B8B,
+
+        // Framebuffers
+        READ_BUFFER = 0x0C02,
+        DRAW_FRAMEBUFFER_BINDING = 0x8CA6,
+        RENDERBUFFER_BINDING = 0x8CA7,
+        READ_FRAMEBUFFER_BINDING = 0x8CAA,
+        DEPTH_FUNC = 0x0B74,
+
+        MAX_DRAW_BUFFERS = 0x8824,
+        MAX_DUAL_SOURCE_DRAW_BUFFERS = 0x88FC,
+        MAX_COLOR_ATTACHMENTS = 0x8CDF,
+        MAX_SAMPLES = 0x8D57,
+        MAX_COLOR_TEXTURE_SAMPLES = 0x910E,
+        MAX_DEPTH_TEXTURE_SAMPLES = 0x910F,
+        MAX_INTEGER_SAMPLES = 0x9110,
+        MAX_FRAMEBUFFER_WIDTH = 0x9315,
+        MAX_FRAMEBUFFER_HEIGHT = 0x9316,
+        MAX_FRAMEBUFFER_LAYERS = 0x9317,
+        MAX_FRAMEBUFFER_SAMPLES = 0x9318,
+
+        STENCIL_BACK_FUNC = 0x8800,
+        STENCIL_BACK_FAIL = 0x8801,
+        STENCIL_BACK_PASS_DEPTH_FAIL = 0x8802,
+        STENCIL_BACK_PASS_DEPTH_PASS = 0x8803,
+        STENCIL_BACK_REF = 0x8CA3,
+        STENCIL_BACK_VALUE_MASK = 0x8CA4,
+        STENCIL_BACK_WRITEMASK = 0x8CA5,
+
+        STENCIL_CLEAR_VALUE = 0x0B91,
+        STENCIL_FUNC = 0x0B92,
+        STENCIL_VALUE_MASK = 0x0B93,
+        STENCIL_FAIL = 0x0B94,
+        STENCIL_PASS_DEPTH_FAIL = 0x0B95,
+        STENCIL_PASS_DEPTH_PASS = 0x0B96,
+        STENCIL_REF = 0x0B97,
+        STENCIL_WRITEMASK = 0x0B98,
+
+        DRAW_BUFFER = 0x0C01,
+        DRAW_BUFFER0 = 0x8825,
+        DRAW_BUFFER1 = 0x8826,
+        DRAW_BUFFER2 = 0x8827,
+        DRAW_BUFFER3 = 0x8828,
+        DRAW_BUFFER4 = 0x8829,
+        DRAW_BUFFER5 = 0x882A,
+        DRAW_BUFFER6 = 0x882B,
+        DRAW_BUFFER7 = 0x882C,
+        DRAW_BUFFER8 = 0x882D,
+        DRAW_BUFFER9 = 0x882E,
+        DRAW_BUFFER10 = 0x882F,
+        DRAW_BUFFER11 = 0x8830,
+        DRAW_BUFFER12 = 0x8831,
+        DRAW_BUFFER13 = 0x8832,
+        DRAW_BUFFER14 = 0x8833,
+        DRAW_BUFFER15 = 0x8834,
+
+        // Multisampling
+        SAMPLE_BUFFERS = 0x80A8,
+        SAMPLES = 0x80A9,
+        MAX_SAMPLE_MASK_WORDS = 0x8E59,
+
+        // Pixel Operations
+        LOGIC_OP_MODE = 0x0BF0,
+        BLEND_EQUATION_RGB = 0x8009,
+        BLEND_DST_RGB = 0x80C8,
+        BLEND_SRC_RGB = 0x80C9,
+        BLEND_DST_ALPHA = 0x80CA,
+        BLEND_SRC_ALPHA = 0x80CB,
+        BLEND_EQUATION_ALPHA = 0x883D,
+
+        // Pixel Transfer Operations
+        PIXEL_PACK_BUFFER_BINDING = 0x88ED,
+        PIXEL_UNPACK_BUFFER_BINDING = 0x88EF,
+
+        CLAMP_READ_COLOR = 0x891C,
+        IMPLEMENTATION_COLOR_READ_TYPE = 0x8B9A,
+        IMPLEMENTATION_COLOR_READ_FORMAT = 0x8B9B,
+
+        UNPACK_ROW_LENGTH = 0x0CF2,
+        UNPACK_SKIP_ROWS = 0x0CF3,
+        UNPACK_SKIP_PIXELS = 0x0CF4,
+        UNPACK_ALIGNMENT = 0x0CF5,
+        UNPACK_SKIP_IMAGES = 0x806D,
+        UNPACK_IMAGE_HEIGHT = 0x806E,
+        UNPACK_COMPRESSED_BLOCK_WIDTH = 0x9127,
+        UNPACK_COMPRESSED_BLOCK_HEIGHT = 0x9128,
+        UNPACK_COMPRESSED_BLOCK_DEPTH = 0x9129,
+        UNPACK_COMPRESSED_BLOCK_SIZE = 0x912A,
+
+        PACK_ROW_LENGTH = 0x0D02,
+        PACK_SKIP_ROWS = 0x0D03,
+        PACK_SKIP_PIXELS = 0x0D04,
+        PACK_ALIGNMENT = 0x0D05,
+        PACK_SKIP_IMAGES = 0x806B,
+        PACK_IMAGE_HEIGHT = 0x806C,
+        PACK_COMPRESSED_BLOCK_WIDTH = 0x912B,
+        PACK_COMPRESSED_BLOCK_HEIGHT = 0x912C,
+        PACK_COMPRESSED_BLOCK_DEPTH = 0x912D,
+        PACK_COMPRESSED_BLOCK_SIZE = 0x912E,
+
+        // Programs
+        PROGRAM_PIPELINE_BINDING = 0x825A,
+        NUM_PROGRAM_BINARY_FORMATS = 0x87FE,
+        PROGRAM_BINARY_FORMATS = 0x87FF,
+        CURRENT_PROGRAM = 0x8B8D,
+        MIN_PROGRAM_TEXEL_OFFSET = 0x8904,
+        UNIFORM_BUFFER_OFFSET_ALIGNMENT = 0x8A34,
+        SHADER_BINARY_FORMATS = 0x8DF8,
+        NUM_SHADER_BINARY_FORMATS = 0x8DF9,
+        SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT = 0x90DF,
+
+        MAX_UNIFORM_LOCATIONS = 0x826E,
+        MAX_VERTEX_ATTRIB_RELATIVE_OFFSET = 0x82D9,
+        MAX_VERTEX_ATTRIB_BINDINGS = 0x82DA,
+        MAX_VERTEX_ATTRIB_STRIDE = 0x82E5,
+        MAX_PROGRAM_TEXEL_OFFSET = 0x8905,
+        MAX_UNIFORM_BLOCK_SIZE = 0x8A30,
+        MAX_SUBROUTINES = 0x8DE7,
+        MAX_SUBROUTINE_UNIFORM_LOCATIONS = 0x8DE8,
+        MAX_VARYING_VECTORS = 0x8DFC,
+        MAX_IMAGE_UNITS = 0x8F38,
+        MAX_COMBINED_SHADER_OUTPUT_RESOURCES = 0x8F39,
+        MAX_IMAGE_SAMPLES = 0x906D,
+        MAX_ATOMIC_COUNTER_BUFFER_SIZE = 0x92D8,
+
+        // Provoking Vertices
+        LAYER_PROVOKING_VERTEX = 0x825E,
+        VIEWPORT_INDEX_PROVOKING_VERTEX = 0x825F,
+        PROVOKING_VERTEX = 0x8E4F,
+
+        // Rasterization
+        POLYGON_MODE = 0x0B40,
+        CULL_FACE_MODE = 0x0B45,
+        FRONT_FACE = 0x0B46,
+        SUBPIXEL_BITS = 0x0D50,
+        POINT_SPRITE_COORD_ORIGIN = 0x8CA0,
+
+        // Shaders
+        MAX_COMPUTE_ATOMIC_COUNTER_BUFFERS = 0x8264,
+        MAX_VERTEX_ATOMIC_COUNTER_BUFFERS = 0x92CC,
+        MAX_TESS_CONTROL_ATOMIC_COUNTER_BUFFERS = 0x92CD,
+        MAX_TESS_EVALUATION_ATOMIC_COUNTER_BUFFERS = 0x92CE,
+        MAX_GEOMETRY_ATOMIC_COUNTER_BUFFERS = 0x92CF,
+        MAX_FRAGMENT_ATOMIC_COUNTER_BUFFERS = 0x92D0,
+        MAX_COMBINED_ATOMIC_COUNTER_BUFFERS = 0x92D1,
+
+        MAX_COMPUTE_ATOMIC_COUNTERS = 0x8265,
+        MAX_VERTEX_ATOMIC_COUNTERS = 0x92D2,
+        MAX_TESS_CONTROL_ATOMIC_COUNTERS = 0x92D3,
+        MAX_TESS_EVALUATION_ATOMIC_COUNTERS = 0x92D4,
+        MAX_GEOMETRY_ATOMIC_COUNTERS = 0x92D5,
+        MAX_FRAGMENT_ATOMIC_COUNTERS = 0x92D6,
+        MAX_COMBINED_ATOMIC_COUNTERS = 0x92D7,
+
+        MAX_COMBINED_COMPUTE_UNIFORM_COMPONENTS = 0x8266,
+        MAX_COMBINED_VERTEX_UNIFORM_COMPONENTS = 0x8A31,
+        MAX_COMBINED_GEOMETRY_UNIFORM_COMPONENTS = 0x8A32,
+        MAX_COMBINED_FRAGMENT_UNIFORM_COMPONENTS = 0x8A33,
+        MAX_COMBINED_TESS_CONTROL_UNIFORM_COMPONENTS = 0x8E1E,
+        MAX_COMBINED_TESS_EVALUATION_UNIFORM_COMPONENTS = 0x8E1F,
+
+        MAX_VERTEX_IMAGE_UNIFORMS = 0x90CA,
+        MAX_TESS_CONTROL_IMAGE_UNIFORMS = 0x90CB,
+        MAX_TESS_EVALUATION_IMAGE_UNIFORMS = 0x90CC,
+        MAX_GEOMETRY_IMAGE_UNIFORMS = 0x90CD,
+        MAX_FRAGMENT_IMAGE_UNIFORMS = 0x90CE,
+        MAX_COMBINED_IMAGE_UNIFORMS = 0x90CF,
+        MAX_COMPUTE_IMAGE_UNIFORMS = 0x91BD,
+
+        MAX_VERTEX_SHADER_STORAGE_BLOCKS = 0x90D6,
+        MAX_GEOMETRY_SHADER_STORAGE_BLOCKS = 0x90D7,
+        MAX_TESS_CONTROL_SHADER_STORAGE_BLOCKS = 0x90D8,
+        MAX_TESS_EVALUATION_SHADER_STORAGE_BLOCKS = 0x90D9,
+        MAX_FRAGMENT_SHADER_STORAGE_BLOCKS = 0x90DA,
+        MAX_COMPUTE_SHADER_STORAGE_BLOCKS = 0x90DB,
+        MAX_COMBINED_SHADER_STORAGE_BLOCKS = 0x90DC,
+
+        MAX_COMPUTE_UNIFORM_COMPONENTS = 0x8263,
+        MAX_FRAGMENT_UNIFORM_COMPONENTS = 0x8B49,
+        MAX_VERTEX_UNIFORM_COMPONENTS = 0x8B4A,
+        MAX_GEOMETRY_UNIFORM_COMPONENTS = 0x8DDF,
+        MAX_TESS_CONTROL_UNIFORM_COMPONENTS = 0x8E7F,
+        MAX_TESS_EVALUATION_UNIFORM_COMPONENTS = 0x8E80,
+
+        MAX_TEXTURE_IMAGE_UNITS = 0x8872,
+        MAX_VERTEX_TEXTURE_IMAGE_UNITS = 0x8B4C,
+        MAX_COMBINED_TEXTURE_IMAGE_UNITS = 0x8B4D,
+        MAX_GEOMETRY_TEXTURE_IMAGE_UNITS = 0x8C29,
+        MAX_TESS_CONTROL_TEXTURE_IMAGE_UNITS = 0x8E81,
+        MAX_TESS_EVALUATION_TEXTURE_IMAGE_UNITS = 0x8E82,
+        MAX_COMPUTE_TEXTURE_IMAGE_UNITS = 0x91BC,
+
+        MAX_VERTEX_UNIFORM_BLOCKS = 0x8A2B,
+        MAX_GEOMETRY_UNIFORM_BLOCKS = 0x8A2C,
+        MAX_FRAGMENT_UNIFORM_BLOCKS = 0x8A2D,
+        MAX_COMBINED_UNIFORM_BLOCKS = 0x8A2E,
+        MAX_TESS_CONTROL_UNIFORM_BLOCKS = 0x8E89,
+        MAX_TESS_EVALUATION_UNIFORM_BLOCKS = 0x8E8A,
+        MAX_COMPUTE_UNIFORM_BLOCKS = 0x91BB,
+
+        // Compute Shaders
+        MAX_COMPUTE_SHARED_MEMORY_SIZE = 0x8262,
+        MAX_COMPUTE_WORK_GROUP_INVOCATIONS = 0x90EB,
+        DISPATCH_INDIRECT_BUFFER_BINDING = 0x90EF,
+
+        // Fragment Shaders
+        MAX_FRAGMENT_UNIFORM_VECTORS = 0x8DFD,
+        MIN_PROGRAM_TEXTURE_GATHER_OFFSET = 0x8E5E,
+        MAX_PROGRAM_TEXTURE_GATHER_OFFSET = 0x8E5F,
+        MAX_FRAGMENT_INPUT_COMPONENTS = 0x9125,
+
+        // Geometry Shaders
+        MAX_GEOMETRY_OUTPUT_VERTICES = 0x8DE0,
+        MAX_GEOMETRY_TOTAL_OUTPUT_COMPONENTS = 0x8DE1,
+        MAX_GEOMETRY_SHADER_INVOCATIONS = 0x8E5A,
+        MAX_VERTEX_STREAMS = 0x8E71,
+        MAX_GEOMETRY_INPUT_COMPONENTS = 0x9123,
+        MAX_GEOMETRY_OUTPUT_COMPONENTS = 0x9124,
+
+        // Tessellation Control Shaders
+        MAX_TESS_CONTROL_INPUT_COMPONENTS = 0x886C,
+        PATCH_VERTICES = 0x8E72,
+        MAX_PATCH_VERTICES = 0x8E7D,
+        MAX_TESS_GEN_LEVEL = 0x8E7E,
+        MAX_TESS_CONTROL_OUTPUT_COMPONENTS = 0x8E83,
+        MAX_TESS_PATCH_COMPONENTS = 0x8E84,
+        MAX_TESS_CONTROL_TOTAL_OUTPUT_COMPONENTS = 0x8E85,
+
+        // Tessellation Evaluation Shaders
+        MAX_TESS_EVALUATION_INPUT_COMPONENTS = 0x886D,
+        MAX_TESS_EVALUATION_OUTPUT_COMPONENTS = 0x8E86,
+
+        // Vertex Shaders
+        MAX_VERTEX_ATTRIBS = 0x8869,
+        MAX_VERTEX_UNIFORM_VECTORS = 0x8DFB,
+        MAX_VERTEX_OUTPUT_COMPONENTS = 0x9122,
+
+        // Textures
+        MAX_TEXTURE_SIZE = 0x0D33,
+        MAX_3D_TEXTURE_SIZE = 0x8073,
+        ACTIVE_TEXTURE = 0x84E0,
+        MAX_RENDERBUFFER_SIZE = 0x84E8,
+        MAX_RECTANGLE_TEXTURE_SIZE = 0x84F8,
+        MAX_CUBE_MAP_TEXTURE_SIZE = 0x851C,
+        NUM_COMPRESSED_TEXTURE_FORMATS = 0x86A2,
+        COMPRESSED_TEXTURE_FORMATS = 0x86A3,
+        MAX_ARRAY_TEXTURE_LAYERS = 0x88FF,
+        SAMPLER_BINDING = 0x8919,
+        AX_TEXTURE_BUFFER_SIZE = 0x8C2B,
+        TEXTURE_BUFFER_OFFSET_ALIGNMENT = 0x919F,
+
+        TEXTURE_BINDING_1D = 0x8068,
+        TEXTURE_BINDING_2D = 0x8069,
+        TEXTURE_BINDING_3D = 0x806A,
+        TEXTURE_BINDING_RECTANGLE = 0x84F6,
+        TEXTURE_BINDING_CUBE_MAP = 0x8514,
+        TEXTURE_BINDING_1D_ARRAY = 0x8C1C,
+        TEXTURE_BINDING_2D_ARRAY = 0x8C1D,
+        TEXTURE_BINDING_BUFFER = 0x8C2C,
+        TEXTURE_BINDING_2D_MULTISAMPLE = 0x9104,
+        TEXTURE_BINDING_2D_MULTISAMPLE_ARRAY = 0x9105,
+
+        // Transformation State
+        VIEWPORT = 0x0BA2,
+        MAX_CLIP_DISTANCES = 0x0D32,
+        MAX_VIEWPORTS = 0x825B,
+        VIEWPORT_SUBPIXEL_BITS = 0x825C,
+        TRANSFORM_FEEDBACK_BINDING = 0x8E25,
+
+        // Vertex Arrays
+        MAX_ELEMENTS_VERTICES = 0x80E8,
+        MAX_ELEMENTS_INDICES = 0x80E9,
+        PRIMITIVE_RESTART_INDEX = 0x8F9E,
+    }
+
+    /// <summary>
+    /// An enum of the various OpenGL 64-bit integer state variables that can be queried via `glGetInteger64v`.
+    /// </summary>
+    public enum IntegerQuery64
+    {
+        // Uncategorized
+        TIMESTAMP = 0x8E28,
+        MAX_ELEMENT_INDEX = 0x8D6B,
+        MAX_SHADER_STORAGE_BLOCK_SIZE = 0x90DE,
+        MAX_SERVER_WAIT_TIMEOUT = 0x9111,
+    }
+
+    /// <summary>
+    /// An enum of the various indexed OpenGL boolean state variables that can be queried via `glGetBooleani_v`.
+    /// </summary>
+    public enum IndexedBooleanQuery
+    {
+        SCISSOR_TEST = 0x0C11,
+        COLOR_WRITEMASK = 0x0C23,
+        IMAGE_BINDING_LAYERED = 0x8F3C,
+        BLEND = 0x0BE2,
+    }
+
+    /// <summary>
+    /// An enum of the various indexed OpenGL single-precision
+    /// floating point state variables that can be queried via `glGetFloati_v`.
+    /// </summary>
+    public enum IndexedFloatQuery
+    {
+        SCISSOR_BOX = 0x0C10,
+        BLEND_COLOR = 0x8005,
+    }
+
+    /// <summary>
+    /// An enum of the various indexed OpenGL 32-bit integer state variables that can be queried via `glGetIntegeri_v`.
+    /// </summary>
+    public enum IndexedIntegerQuery
+    {
+        // Uncategorized
+        VIEWPORT = 0x0BA2,
+        VERTEX_BINDING_DIVISOR = 0x82D6,
+        VERTEX_BINDING_STRIDE = 0x82D8,
+        SAMPLE_MASK_VALUE = 0x8E52,
+
+        // Buffer binding info
+        UNIFORM_BUFFER_BINDING = 0x8A28,
+        TRANSFORM_FEEDBACK_BUFFER_BINDING = 0x8C8F,
+        SHADER_STORAGE_BUFFER_BINDING = 0x90D3,
+        ATOMIC_COUNTER_BUFFER_BINDING = 0x92C1,
+
+        UNIFORM_BUFFER_START = 0x8A29,
+        TRANSFORM_FEEDBACK_BUFFER_START = 0x8C84,
+        SHADER_STORAGE_BUFFER_START = 0x90D4,
+        ATOMIC_COUNTER_BUFFER_START = 0x92C2,
+
+        UNIFORM_BUFFER_SIZE = 0x8A2A,
+        TRANSFORM_FEEDBACK_BUFFER_SIZE = 0x8C85,
+        SHADER_STORAGE_BUFFER_SIZE = 0x90D5,
+        ATOMIC_COUNTER_BUFFER_SIZE = 0x92C3,
+
+        // Image State
+        IMAGE_BINDING_NAME = 0x8F3A,
+        IMAGE_BINDING_LEVEL = 0x8F3B,
+        IMAGE_BINDING_LAYER = 0x8F3D,
+        IMAGE_BINDING_ACCESS = 0x8F3E,
+        IMAGE_BINDING_FORMAT = 0x906E,
+
+        // Pixel Operations
+        BLEND_EQUATION_RGB = 0x8009,
+        BLEND_DST_RGB = 0x80C8,
+        BLEND_SRC_RGB = 0x80C9,
+        BLEND_DST_ALPHA = 0x80CA,
+        BLEND_SRC_ALPHA = 0x80CB,
+        BLEND_EQUATION_ALPHA = 0x883D,
+
+        // Compute Shaders
+        MAX_COMPUTE_WORK_GROUP_COUNT = 0x91BE,
+        MAX_COMPUTE_WORK_GROUP_SIZE = 0x91BF,
+    }
+
+    /// <summary>
+    /// An enum of the various indexed OpenGL 64-bit integer state variables that can be queried via `glGetInteger64i_v`.
+    /// </summary>
+    public enum IndexedIntegerQuery64
+    {
+        VERTEX_BINDING_OFFSET = 0x82D7,
+    }
+
+    #endregion
 
     /// <summary>
     /// An enum of the various data types accepted for vertex attributes in OpenGL. Note that
@@ -179,6 +669,15 @@ namespace Vectoray.Rendering.OpenGL
     public static class GL
     {
         #region Variable & property declaration
+
+        /// <summary>
+        /// A constant to represent OpenGL's GL_FALSE.
+        /// </summary>
+        public const int FALSE = 0;
+        /// <summary>
+        /// A constant to represent OpenGL's GL_TRUE.
+        /// </summary>
+        public const int TRUE = 1;
 
         /// <summary>
         /// Whether or not the OpenGL configuration attributes have been set before.
@@ -316,6 +815,14 @@ namespace Vectoray.Rendering.OpenGL
                     + " OpenGL version is unrecognized or invalid.")
             };
         }
+
+        /// <summary>
+        /// Get the string representation of this OpenGL version constant.
+        /// </summary>
+        /// <param name="version">The version constant to get the string representation of.</param>
+        /// <returns>The string representation of the provided OpenGL version constant.</returns>
+        public static string AsString(this GLVersion version)
+            => $"{version.GetMajor()}.{version.GetMinor()}";
     }
 
     #region Exception declaration
