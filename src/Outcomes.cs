@@ -392,6 +392,7 @@ namespace Vectoray
         private protected Opt() { }
 
         public static implicit operator Opt<T>(T value) => value.Some();
+        public static implicit operator bool(Opt<T> value) => value is Some<T>;
 
         /// <summary>
         /// Attempt to unwrap this option and retrieve the value inside.
@@ -602,6 +603,43 @@ namespace Vectoray
     }
 
     #endregion
+
+    /// <summary>
+    /// A simple extension of `System.Exception` that contains an extra `Type` enum value
+    /// used to condense into one class several exception types that would otherwise only differ by name.
+    /// </summary>
+    /// <typeparam name="T">The enum type to use.</typeparam>
+    public class ExceptionEnum<T> : Exception where T : Enum
+    {
+        /// <summary>
+        /// Get the variant of exception this class represents.
+        /// </summary>
+        public readonly T type;
+
+        /// <summary>
+        /// Create a new ExceptionEnum instance with a given variant of `T`.
+        /// </summary>
+        /// <param name="type">The variant of `T` to use.</param>
+        /// <returns>The newly-created ExceptionEnum instance.</returns>
+        protected ExceptionEnum(T type) : base() => this.type = type;
+
+        /// <summary>
+        /// Create a new ExceptionEnum instance with a given variant of `T` and a message.
+        /// </summary>
+        /// <param name="type">The variant of `T` to use.</param>
+        /// <param name="message">The exception message to use.</param>
+        /// <returns>The newly-created ExceptionEnum instance.</returns>
+        protected ExceptionEnum(T type, string message) : base(message) => this.type = type;
+
+        /// <summary>
+        /// Create a new ExceptionEnum instance with a given variant of `T`, a message, and an inner exception instance.
+        /// </summary>
+        /// <param name="type">The variant of `T` to use.</param>
+        /// <param name="message">The exception message to use.</param>
+        /// <param name="inner">The inner exception instance.</param>
+        /// <returns>The newly-created ExceptionEnum instance.</returns>
+        protected ExceptionEnum(T type, string message, Exception inner) : base(message, inner) => this.type = type;
+    }
 
     // TODO: Like all the other 'unsafe' methods of unwrapping outcomes, this should be moved elsewhere so it
     // requires a separate 'using', so as to discourage use.

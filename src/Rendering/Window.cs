@@ -118,7 +118,7 @@ namespace Vectoray.Rendering
         /// <param name="h">The height of the window.</param>
         /// <param name="flags">SDL_WindowFlags to enable on this window.</param>
         /// <returns>An option representing whether or not window creation was successful.</returns>
-        public static Result<Window, WindowCreationFailedException> CreateWindow(
+        public static Result<Window, WindowException> CreateWindow(
             string title = "Untitled",
             int x = SDL_WINDOWPOS_UNDEFINED,
             int y = SDL_WINDOWPOS_UNDEFINED,
@@ -128,7 +128,7 @@ namespace Vectoray.Rendering
         {
             Window window = new Window(SDL_CreateWindow(title, x, y, w, h, flags));
             if (!window.Initialized)
-                return new WindowCreationFailedException(
+                return new WindowException(WindowExceptionType.CreationFailed,
                     $"SDL2 failed to create window '{title}'! SDL error: {SDL_GetError()}").Invalid();
             else return window.Valid();
         }
@@ -160,20 +160,20 @@ namespace Vectoray.Rendering
         public Result<Renderer, WindowException> CreateRenderer()
         {
             if (this.Renderer != null)
-                return new RendererAlreadyExistsException(
-                    "Cannot create an OpenGL context for a window that already has one.").Invalid<WindowException>();
+                return new WindowException(WindowExceptionType.RendererAlreadyExists,
+                    "Cannot create an OpenGL context for a window that already has one.").Invalid();
 
             if (!SupportsOpenGL)
-                return new OpenGLUnsupportedException(
-                    "Cannot create an OpenGL context for a window that does not support it.").Invalid<WindowException>();
+                return new WindowException(WindowExceptionType.OpenGLUnsupported,
+                    "Cannot create an OpenGL context for a window that does not support it.").Invalid();
 
             return Renderer.CreateRenderer(windowPointer) switch
             {
                 Valid<Renderer, RendererException>(Renderer r) => (this.Renderer = r).Valid(),
                 Invalid<Renderer, RendererException>(RendererException e) =>
-                    new RendererCreationFailedException(e.Message, e).Invalid<WindowException>(),
-                _ => new RendererCreationFailedException("Unknown Renderer creation failure occurred.")
-                    .Invalid<WindowException>()
+                    new WindowException(WindowExceptionType.RendererCreationFailed, e.Message, e).Invalid(),
+                _ => new WindowException(WindowExceptionType.RendererCreationFailed,
+                        "Unknown Renderer creation failure occurred.").Invalid()
             };
         }
 
@@ -229,47 +229,20 @@ namespace Vectoray.Rendering
         /// <summary>
         /// Base exception type used by the `Window` class for `Result` error types.
         /// </summary>
-        public class WindowException : Exception
+        public class WindowException : ExceptionEnum<WindowExceptionType>
         {
-            protected WindowException() : base() { }
-            protected WindowException(string message) : base(message) { }
-            protected WindowException(string message, Exception inner) : base(message, inner) { }
+            public WindowException(WindowExceptionType type) : base(type) { }
+            public WindowException(WindowExceptionType type, string message) : base(type, message) { }
+            public WindowException(WindowExceptionType type, string message, Exception inner) : base(type, message, inner) { }
         }
 
-        /// <summary>
-        /// An exception used to indicate that SDL2 has failed to create a requested window.
-        /// </summary>
-        public sealed class WindowCreationFailedException : WindowException
+        public enum WindowExceptionType
         {
-            public WindowCreationFailedException(string message) : base(message) { }
-            public WindowCreationFailedException(string message, Exception inner) : base(message, inner) { }
-        }
-
-        public sealed class RendererCreationFailedException : WindowException
-        {
-            public RendererCreationFailedException() : base() { }
-            public RendererCreationFailedException(string message) : base(message) { }
-            public RendererCreationFailedException(string message, Exception inner) : base(message, inner) { }
-        }
-
-        /// <summary>
-        /// An exception used to indicate that a renderer cannot be created due to one already being linked
-        /// to this window.
-        /// </summary>
-        public sealed class RendererAlreadyExistsException : WindowException
-        {
-            public RendererAlreadyExistsException(string message) : base(message) { }
-            public RendererAlreadyExistsException(string message, Exception inner) : base(message, inner) { }
-        }
-
-        /// <summary>
-        /// An exception used to indicate that an OpenGL-dependent function failed
-        /// due to a lack of OpenGL context support from the window.
-        /// </summary>
-        public sealed class OpenGLUnsupportedException : WindowException
-        {
-            public OpenGLUnsupportedException(string message) : base(message) { }
-            public OpenGLUnsupportedException(string message, Exception inner) : base(message, inner) { }
+            Default,
+            CreationFailed,
+            RendererCreationFailed,
+            RendererAlreadyExists,
+            OpenGLUnsupported
         }
 
         #endregion
