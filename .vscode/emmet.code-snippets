@@ -24,5 +24,47 @@
 			"private readonly gl${2:FuncName} _gl${2:FuncName};"
 		],
 		"description": "Add a new OpenGL interop delegate."
+	},
+	"ExceptionEnum Definition": {
+		"scope": "csharp",
+		"prefix": "exc-enum",
+		"body": [
+			"/// <summary>",
+			"/// A type used to represent the various errors that can occur for the ${1:TypeName} class.",
+			"/// </summary>",
+			"public class ${1:TypeName}Exception : ExceptionEnum<${1:TypeName}ExceptionType>",
+			"{",
+			"\tpublic ${1:TypeName}Exception(${1:TypeName}ExceptionType type) : base(type) {}",
+			"\tpublic ${1:TypeName}Exception(${1:TypeName}ExceptionType type, string message) : base(type, message) {}",
+			"\tpublic ${1:TypeName}Exception(${1:TypeName}ExceptionType type, string message, Exception inner) : base(type, message, inner) {}",
+			"}\n",
+			"/// <summary>",
+			"/// An enum of the various types of errors that can occur for the ${1:TypeName} class.",
+			"/// </summary>",
+			"public enum ${1:TypeName}ExceptionType",
+			"{",
+			"\tDefault,",
+			"\t$0",
+			"}"
+		],
+		"description": "Create a new ExceptionEnum variant and an associated enum for it."
+	},
+	"ExceptionEnum Definition (No Docs)": {
+		"scope": "csharp",
+		"prefix": "exc-enum-nodoc",
+		"body": [
+			"public class ${1:TypeName}Exception : ExceptionEnum<${1:TypeName}ExceptionType>",
+			"{",
+			"\tpublic ${1:TypeName}Exception(${1:TypeName}ExceptionType type) : base(type) {}",
+			"\tpublic ${1:TypeName}Exception(${1:TypeName}ExceptionType type, string message) : base(type, message) {}",
+			"\tpublic ${1:TypeName}Exception(${1:TypeName}ExceptionType type, string message, Exception inner) : base(type, message, inner) {}",
+			"}\n",
+			"public enum ${1:TypeName}ExceptionType",
+			"{",
+			"\tDefault,",
+			"\t$0",
+			"}"
+		],
+		"description": "Create a new ExceptionEnum variant and an associated enum for it (minus summary blocks)."
 	}
 }

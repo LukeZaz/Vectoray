@@ -17,9 +17,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.IO;
 
 namespace Vectoray.Rendering.OpenGL
 {
+    #region Enum declarations
+
     /// <summary>
     /// An enum of the two types of OpenGL shader.
     /// </summary>
@@ -68,6 +71,8 @@ namespace Vectoray.Rendering.OpenGL
         TRANSFORM_FEEDBACK_VARYINGS = 0x8C83,
         ACTIVE_ATOMIC_COUNTER_BUFFERS = 0x92D9
     }
+
+    #endregion
 
     /// <summary>
     /// A wrapper for an OpenGL shader object.
@@ -129,9 +134,8 @@ namespace Vectoray.Rendering.OpenGL
         public static Result<Shader, ShaderException> CreateNew(Renderer renderer, ShaderType type, string[] sources)
         {
             if (renderer == null)
-                return new ShaderRendererNullException(
-                    "Failed to create a shader as the renderer provided was null.")
-                    .Invalid<ShaderException>();
+                return new ShaderException(ShaderExceptionType.RendererNull,
+                    "Failed to create a shader as the renderer provided was null.").Invalid();
 
             if (renderer.CreateShader(type) is Some<uint>(uint shaderId))
             {
@@ -141,23 +145,32 @@ namespace Vectoray.Rendering.OpenGL
 
                 // // The 'is' check here is for deconstruction; the method only returns None if the object id
                 // // doesn't represent a shader object, and we can be pretty certain that won't happen.
-                if (renderer.GetShaderParam(instance.id, ShaderParams.COMPILE_STATUS) is Some<int>(int x) && x == 0)
+                if (renderer.GetShaderParam(instance.id, ShaderParams.COMPILE_STATUS) is Some<int>(int x) && x == GL.FALSE)
                 {
                     // Same deal for the 'is' check here.
                     if (renderer.GetShaderInfoLog(instance.id) is Some<string>(string message))
-                        return new ShaderCompilationFailedException(
-                            $"Failed to compile OpenGL shader '{instance.id}'. Info log: {message}")
-                            .Invalid<ShaderException>();
-                    else return new ShaderCompilationFailedException(
+                        return new ShaderException(ShaderExceptionType.CompilationFailed,
+                            $"Failed to compile OpenGL shader '{instance.id}'. Info log: {message}").Invalid();
+                    else return new ShaderException(ShaderExceptionType.CompilationFailed,
                         $"Failed to compile OpenGL shader '{instance.id}'. Additionally, the info log could not be retrieved.")
-                        .Invalid<ShaderException>();
+                        .Invalid();
                 }
                 else return instance.Valid();
             }
-            return new ShaderCreationFailedException(
-                "Failed to create OpenGL shader object for Shader instance.")
-                .Invalid<ShaderException>();
+            return new ShaderException(ShaderExceptionType.CreationFailed,
+                "Failed to create OpenGL shader object for Shader instance.").Invalid();
         }
+
+        /// <summary>
+        /// Creates a new shader of the specified type using the given source code.
+        /// </summary>
+        /// <param name="type">The shader type to create.</param>
+        /// <param name="source">A string containing the source code to be used.</param>
+        /// <returns>
+        /// A `Valid` containing a new `Shader` if successful, or an `Invalid` containing an error if one occurred.
+        /// </returns>
+        public static Result<Shader, ShaderException> CreateNew(Renderer renderer, ShaderType type, string source)
+            => CreateNew(renderer, type, new[] { source });
 
         ~Shader()
         {
@@ -214,9 +227,8 @@ namespace Vectoray.Rendering.OpenGL
         public static Result<ShaderProgram, ShaderProgramException> CreateNew(Renderer renderer, Shader[] shaders)
         {
             if (renderer == null)
-                return new ProgramRendererNullException(
-                    "Failed to create a shader program as the renderer provided was null.")
-                    .Invalid<ShaderProgramException>();
+                return new ShaderProgramException(ShaderProgramExceptionType.RendererNull,
+                    "Failed to create a shader program as the renderer provided was null.").Invalid();
 
             if (renderer.CreateProgram() is Some<uint>(uint programId))
             {
@@ -228,9 +240,8 @@ namespace Vectoray.Rendering.OpenGL
                     else
                     {
                         renderer.DeleteProgram(programId);
-                        return new ShaderNotUsableException(
-                            "Failed to create OpenGL shader program as one of the given shaders was not usable.")
-                            .Invalid<ShaderProgramException>();
+                        return new ShaderProgramException(ShaderProgramExceptionType.ShaderNotUsable,
+                            "Failed to create OpenGL shader program as one of the given shaders was not usable.").Invalid();
                     }
                 }
 
@@ -241,9 +252,8 @@ namespace Vectoray.Rendering.OpenGL
                 {
                     // Same deal for the 'is' check here.
                     if (renderer.GetShaderInfoLog(instance.id) is Some<string>(string message))
-                        return new ShaderProgramCreationFailedException(
-                            $"Failed to link OpenGL program '{instance.id}'. Info log: {message}")
-                            .Invalid<ShaderProgramException>();
+                        return new ShaderProgramException(ShaderProgramExceptionType.CreationFailed,
+                            $"Failed to link OpenGL program '{instance.id}'. Info log: {message}").Invalid();
                 }
 
                 foreach (Shader shader in shaders)
@@ -253,9 +263,8 @@ namespace Vectoray.Rendering.OpenGL
                 }
                 return instance.Valid();
             }
-            return new ShaderProgramCreationFailedException(
-                "Failed to create OpenGL shader object for GLShader instance.")
-                .Invalid<ShaderProgramException>();
+            return new ShaderProgramException(ShaderProgramExceptionType.CreationFailed,
+                "Failed to create OpenGL shader object for GLShader instance.").Invalid();
         }
 
         ~ShaderProgram()
@@ -267,71 +276,45 @@ namespace Vectoray.Rendering.OpenGL
     #region Exception definitions
 
     /// <summary>
-    /// Base exception type used by the `Shader` class for `Result` error types.
+    /// A type used to represent the various errors that can occur for the Shader class.
     /// </summary>
-    public class ShaderException : Exception
+    public class ShaderException : ExceptionEnum<ShaderExceptionType>
     {
-        protected ShaderException() : base() { }
-        protected ShaderException(string message) : base(message) { }
-        protected ShaderException(string message, Exception inner) : base(message, inner) { }
+        public ShaderException(ShaderExceptionType type) : base(type) { }
+        public ShaderException(ShaderExceptionType type, string message) : base(type, message) { }
+        public ShaderException(ShaderExceptionType type, string message, Exception inner) : base(type, message, inner) { }
     }
 
     /// <summary>
-    /// An exception used to indicate that the provided Renderer instance was null.
+    /// An enum of the various types of errors that can occur for the Shader class.
     /// </summary>
-    public class ShaderRendererNullException : ShaderException
+    public enum ShaderExceptionType
     {
-        public ShaderRendererNullException(string message) : base(message) { }
-        public ShaderRendererNullException(string message, Exception inner) : base(message, inner) { }
+        Default,
+        RendererNull,
+        CreationFailed,
+        CompilationFailed
     }
 
     /// <summary>
-    /// An exception used to indicate that OpenGL failed to create the requested shader object.
+    /// A type used to represent the various errors that can occur for the ShaderProgram class.
     /// </summary>
-    public class ShaderCreationFailedException : ShaderException
+    public class ShaderProgramException : ExceptionEnum<ShaderProgramExceptionType>
     {
-        public ShaderCreationFailedException(string message) : base(message) { }
-        public ShaderCreationFailedException(string message, Exception inner) : base(message, inner) { }
+        public ShaderProgramException(ShaderProgramExceptionType type) : base(type) { }
+        public ShaderProgramException(ShaderProgramExceptionType type, string message) : base(type, message) { }
+        public ShaderProgramException(ShaderProgramExceptionType type, string message, Exception inner) : base(type, message, inner) { }
     }
 
     /// <summary>
-    /// An exception used to indicate that OpenGL failed to compile the given shader object.
+    /// An enum of the various types of errors that can occur for the ShaderProgram class.
     /// </summary>
-    public class ShaderCompilationFailedException : ShaderException
+    public enum ShaderProgramExceptionType
     {
-        public ShaderCompilationFailedException(string message) : base(message) { }
-        public ShaderCompilationFailedException(string message, Exception inner) : base(message, inner) { }
-    }
-
-    /// <summary>
-    /// Base exception type used by the `ShaderProgram` class for `Result` error types.
-    /// </summary>
-    public class ShaderProgramException : Exception
-    {
-        protected ShaderProgramException() : base() { }
-        protected ShaderProgramException(string message) : base(message) { }
-        protected ShaderProgramException(string message, Exception inner) : base(message, inner) { }
-    }
-
-    /// <summary>
-    /// An exception used to indicate that the provided Renderer instance was null.
-    /// </summary>
-    public class ProgramRendererNullException : ShaderProgramException
-    {
-        public ProgramRendererNullException(string message) : base(message) { }
-        public ProgramRendererNullException(string message, Exception inner) : base(message, inner) { }
-    }
-
-    public class ShaderNotUsableException : ShaderProgramException
-    {
-        public ShaderNotUsableException(string message) : base(message) { }
-        public ShaderNotUsableException(string message, Exception inner) : base(message, inner) { }
-    }
-
-    public class ShaderProgramCreationFailedException : ShaderProgramException
-    {
-        public ShaderProgramCreationFailedException(string message) : base(message) { }
-        public ShaderProgramCreationFailedException(string message, Exception inner) : base(message, inner) { }
+        Default,
+        RendererNull,
+        ShaderNotUsable,
+        CreationFailed
     }
 
     #endregion

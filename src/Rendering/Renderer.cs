@@ -204,15 +204,15 @@ namespace Vectoray.Rendering
         public static Result<Renderer, RendererException> CreateRenderer(IntPtr window)
         {
             if (!GL.ConfigAttributesSet)
-                return new GLAttributesNotSetException(
+                return new RendererException(RendererExceptionType.GLAttribsNotSet,
                     "Cannot create an OpenGL renderer before vital OpenGL attributes have been set.")
-                    .Invalid<RendererException>();
+                    .Invalid();
 
             IntPtr context = SDL_GL_CreateContext(window);
             if (context == IntPtr.Zero)
-                return new ContextCreationFailedException(
+                return new RendererException(RendererExceptionType.ContextCreationFailed,
                     $"Failed to create OpenGL context during Renderer creation. SDL error: {SDL_GetError()}")
-                    .Invalid<RendererException>();
+                    .Invalid();
 
             return new Renderer(context, window).Valid();
         }
@@ -1239,35 +1239,24 @@ namespace Vectoray.Rendering
 
     #region Exception definitions
 
-    // TODO: Emmet snippets for these exceptions? Probably also see if there's a way to simplify
-    // their definitions.
     /// <summary>
-    /// Base exception type used by the `Renderer` class for `Result` error types.
+    /// A type used to represent the various errors that can occur for the Renderer class.
     /// </summary>
-    public class RendererException : Exception
+    public class RendererException : ExceptionEnum<RendererExceptionType>
     {
-        protected RendererException() : base() { }
-        protected RendererException(string message) : base(message) { }
-        protected RendererException(string message, Exception inner) : base(message, inner) { }
+        public RendererException(RendererExceptionType type) : base(type) { }
+        public RendererException(RendererExceptionType type, string message) : base(type, message) { }
+        public RendererException(RendererExceptionType type, string message, Exception inner) : base(type, message, inner) { }
     }
 
     /// <summary>
-    /// An exception used to indicate that a function failed due to relevant OpenGL configuration
-    /// attributes not having been set.
+    /// An enum of the various types of errors that can occur for the Renderer class.
     /// </summary>
-    public class GLAttributesNotSetException : RendererException
+    public enum RendererExceptionType
     {
-        public GLAttributesNotSetException(string message) : base(message) { }
-        public GLAttributesNotSetException(string message, Exception inner) : base(message, inner) { }
-    }
-
-    /// <summary>
-    /// An exception used to indicate that SDL2 has failed to create an OpenGL context.
-    /// </summary>
-    public class ContextCreationFailedException : RendererException
-    {
-        public ContextCreationFailedException(string message) : base(message) { }
-        public ContextCreationFailedException(string message, Exception inner) : base(message, inner) { }
+        Default,
+        GLAttribsNotSet,
+        ContextCreationFailed
     }
 
     #endregion

@@ -223,28 +223,31 @@ namespace Vectoray.Rendering
         /// Also returns false if this window is not yet initialized.</returns>
         private bool CheckFlag(SDL_WindowFlags flag) =>
             Initialized && (SDL_GetWindowFlags(windowPointer) & (uint)flag) != 0;
-
-        #region Exception definitions
-
-        /// <summary>
-        /// Base exception type used by the `Window` class for `Result` error types.
-        /// </summary>
-        public class WindowException : ExceptionEnum<WindowExceptionType>
-        {
-            public WindowException(WindowExceptionType type) : base(type) { }
-            public WindowException(WindowExceptionType type, string message) : base(type, message) { }
-            public WindowException(WindowExceptionType type, string message, Exception inner) : base(type, message, inner) { }
-        }
-
-        public enum WindowExceptionType
-        {
-            Default,
-            CreationFailed,
-            RendererCreationFailed,
-            RendererAlreadyExists,
-            OpenGLUnsupported
-        }
-
-        #endregion
     }
+
+    #region Exception definitions
+
+    /// <summary>
+    /// A type used to represent the various errors that can occur for the Window class.
+    /// </summary>
+    public class WindowException : ExceptionEnum<WindowExceptionType>
+    {
+        public WindowException(WindowExceptionType type) : base(type) { }
+        public WindowException(WindowExceptionType type, string message) : base(type, message) { }
+        public WindowException(WindowExceptionType type, string message, Exception inner) : base(type, message, inner) { }
+    }
+
+    /// <summary>
+    /// An enum of the various types of errors that can occur for the Window class.
+    /// </summary>
+    public enum WindowExceptionType
+    {
+        Default,
+        CreationFailed,
+        RendererCreationFailed,
+        RendererAlreadyExists,
+        OpenGLUnsupported
+    }
+
+    #endregion
 }
