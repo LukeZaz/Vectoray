@@ -183,7 +183,7 @@ namespace Vectoray.Rendering.OpenGL
     /// <summary>
     /// A wrapper for an OpenGL shader program object.
     /// </summary>
-    public class ShaderProgram
+    public class GLProgram
     {
         /// <summary>
         /// The parent renderer of this program object, representing the OpenGL context it will use.
@@ -215,7 +215,7 @@ namespace Vectoray.Rendering.OpenGL
             parentRenderer.GetProgramParam(id, ProgramParams.DELETE_STATUS) is Some<int>(int x) &&
             x == 0;
 
-        private ShaderProgram(Renderer renderer, uint id) => (parentRenderer, this.id) = (renderer, id);
+        private GLProgram(Renderer renderer, uint id) => (parentRenderer, this.id) = (renderer, id);
 
         /// <summary>
         /// Creates a new shader program using the given shaders.
@@ -224,15 +224,15 @@ namespace Vectoray.Rendering.OpenGL
         /// <returns>
         /// A `Valid` containing a new `ShaderProgram` if successful, or an `Invalid` containing an error if one occurred.
         /// </returns>
-        public static Result<ShaderProgram, ShaderProgramException> CreateNew(Renderer renderer, Shader[] shaders)
+        public static Result<GLProgram, GLProgramException> CreateNew(Renderer renderer, Shader[] shaders)
         {
             if (renderer == null)
-                return new ShaderProgramException(ShaderProgramExceptionType.RendererNull,
+                return new GLProgramException(GLProgramExceptionType.RendererNull,
                     "Failed to create a shader program as the renderer provided was null.").Invalid();
 
             if (renderer.CreateProgram() is Some<uint>(uint programId))
             {
-                ShaderProgram instance = new ShaderProgram(renderer, programId);
+                GLProgram instance = new GLProgram(renderer, programId);
                 foreach (Shader shader in shaders)
                 {
                     if (shader.ID is Some<uint>(uint shaderId))
@@ -240,7 +240,7 @@ namespace Vectoray.Rendering.OpenGL
                     else
                     {
                         renderer.DeleteProgram(programId);
-                        return new ShaderProgramException(ShaderProgramExceptionType.ShaderNotUsable,
+                        return new GLProgramException(GLProgramExceptionType.ShaderNotUsable,
                             "Failed to create OpenGL shader program as one of the given shaders was not usable.").Invalid();
                     }
                 }
@@ -252,7 +252,7 @@ namespace Vectoray.Rendering.OpenGL
                 {
                     // Same deal for the 'is' check here.
                     if (renderer.GetShaderInfoLog(instance.id) is Some<string>(string message))
-                        return new ShaderProgramException(ShaderProgramExceptionType.CreationFailed,
+                        return new GLProgramException(GLProgramExceptionType.CreationFailed,
                             $"Failed to link OpenGL program '{instance.id}'. Info log: {message}").Invalid();
                 }
 
@@ -263,11 +263,11 @@ namespace Vectoray.Rendering.OpenGL
                 }
                 return instance.Valid();
             }
-            return new ShaderProgramException(ShaderProgramExceptionType.CreationFailed,
+            return new GLProgramException(GLProgramExceptionType.CreationFailed,
                 "Failed to create OpenGL shader object for GLShader instance.").Invalid();
         }
 
-        ~ShaderProgram()
+        ~GLProgram()
         {
             if (IsUsable) parentRenderer.DeleteProgram(id);
         }
@@ -299,17 +299,17 @@ namespace Vectoray.Rendering.OpenGL
     /// <summary>
     /// A type used to represent the various errors that can occur for the ShaderProgram class.
     /// </summary>
-    public class ShaderProgramException : ExceptionEnum<ShaderProgramExceptionType>
+    public class GLProgramException : ExceptionEnum<GLProgramExceptionType>
     {
-        public ShaderProgramException(ShaderProgramExceptionType type) : base(type) { }
-        public ShaderProgramException(ShaderProgramExceptionType type, string message) : base(type, message) { }
-        public ShaderProgramException(ShaderProgramExceptionType type, string message, Exception inner) : base(type, message, inner) { }
+        public GLProgramException(GLProgramExceptionType type) : base(type) { }
+        public GLProgramException(GLProgramExceptionType type, string message) : base(type, message) { }
+        public GLProgramException(GLProgramExceptionType type, string message, Exception inner) : base(type, message, inner) { }
     }
 
     /// <summary>
     /// An enum of the various types of errors that can occur for the ShaderProgram class.
     /// </summary>
-    public enum ShaderProgramExceptionType
+    public enum GLProgramExceptionType
     {
         Default,
         RendererNull,
