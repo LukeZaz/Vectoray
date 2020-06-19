@@ -253,6 +253,45 @@ namespace Vectoray
         /// <param name="defaultValue">The value to default to if this result is an `Invalid`.</param>
         /// <returns>The inner value of this result, or `defaultValue` if this result is an `Invalid`.</returns>
         public abstract T UnwrapOr(T defaultValue);
+        /// <summary>
+        /// Map this `Opt&lt;T&gt;` to `Opt&lt;R&gt;` by using the provided function
+        /// to convert the inner value.
+        /// </summary>
+        /// <param name="mapFunction">The function to use to map the inner value.</param>
+        /// <typeparam name="R">The new `Opt` type to return.</typeparam>
+        /// <returns>The converted `Opt&lt;R&gt;` value.</returns>
+
+
+        /// <summary>
+        /// Map this `Result&lt;T, E&gt;` to `Result&lt;TMapped, EMapped&gt;` by using the provided functions
+        /// to convert the inner success and error values.
+        /// </summary>
+        /// <param name="valueMapFunction">The function used to map the inner success value.</param>
+        /// <param name="errorMapFunction">The function used to map the inner error value.</param>
+        /// <typeparam name="TMapped">The new success type to use.</typeparam>
+        /// <typeparam name="EMapped">The new error type to use.</typeparam>
+        /// <returns>The converted `Result&lt;TMapped, EMapped&gt;` value.</returns>
+        public abstract Result<TMapped, EMapped> Map<TMapped, EMapped>(
+            Func<T, TMapped> valueMapFunction, Func<E, EMapped> errorMapFunction) where EMapped : Exception;
+
+        /// <summary>
+        /// Map this `Result&lt;T, E&gt;` to `Result&lt;TMapped, E&gt;` by using the provided functions
+        /// to convert the inner success value.
+        /// </summary>
+        /// <param name="valueMapFunction">The function used to map the inner success value.</param>
+        /// <typeparam name="TMapped">The new success type to use.</typeparam>
+        /// <returns>The converted `Result&lt;TMapped, E&gt;` value.</returns>
+        public abstract Result<TMapped, E> MapValue<TMapped>(Func<T, TMapped> mapFunction);
+
+        /// <summary>
+        /// Map this `Result&lt;T, E&gt;` to `Result&lt;T, EMapped&gt;` by using the provided functions
+        /// to convert the inner error value.
+        /// </summary>
+        /// <param name="errorMapFunction">The function used to map the inner error value.</param>
+        /// <typeparam name="EMapped">The new error type to use.</typeparam>
+        /// <returns>The converted `Result&lt;T, EMapped&gt;` value.</returns>
+        public abstract Result<T, EMapped> MapError<EMapped>(Func<E, EMapped> mapFunction)
+            where EMapped : Exception;
     }
 
     /// <summary>
@@ -305,6 +344,39 @@ namespace Vectoray
         public override T UnwrapOr(T defaultValue) => Value;
 
         /// <summary>
+        /// Map this `Valid&lt;T, E&gt;` to `Valid&lt;TMapped, EMapped&gt;` by using the provided functions
+        /// to convert the inner success value.
+        /// </summary>
+        /// <param name="valueMapFunction">The function used to map the inner success value.</param>
+        /// <param name="errorMapFunction">The function used to map the inner error value. Unused.</param>
+        /// <typeparam name="TMapped">The new success type to use.</typeparam>
+        /// <typeparam name="EMapped">The new error type to use.</typeparam>
+        /// <returns>The converted `Valid&lt;TMapped, EMapped&gt;` value.</returns>
+        public override Result<TMapped, EMapped> Map<TMapped, EMapped>(
+            Func<T, TMapped> valueMapFunction, Func<E, EMapped> errorMapFunction)
+            => new Valid<TMapped, EMapped>(valueMapFunction(value));
+
+        /// <summary>
+        /// Map this `Valid&lt;T, E&gt;` to `Valid&lt;TMapped, E&gt;` by using the provided functions
+        /// to convert the inner success value.
+        /// </summary>
+        /// <param name="valueMapFunction">The function used to map the inner success value.</param>
+        /// <typeparam name="TMapped">The new success type to use.</typeparam>
+        /// <returns>The converted `Valid&lt;TMapped, E&gt;` value.</returns>
+        public override Result<TMapped, E> MapValue<TMapped>(Func<T, TMapped> mapFunction)
+            => new Valid<TMapped, E>(mapFunction(value));
+
+        /// <summary>
+        /// Map this `Valid&lt;T, E&gt;` to `Valid&lt;T, EMapped&gt;` by creating a new Valid instance
+        /// using this one's inner value.
+        /// </summary>
+        /// <param name="errorMapFunction">The function used to map an inner error value. Unused.</param>
+        /// <typeparam name="EMapped">The new error type to use.</typeparam>
+        /// <returns>The converted `Valid&lt;T, EMapped&gt;` value.</returns>
+        public override Result<T, EMapped> MapError<EMapped>(Func<E, EMapped> mapFunction)
+            => new Valid<T, EMapped>(value);
+
+        /// <summary>
         /// Deconstruct this `Valid` and retrieve the inner value.
         /// </summary>
         /// <param name="value">The variable to fill with the inner value of this `Valid`.</param>
@@ -353,6 +425,39 @@ namespace Vectoray
         /// <param name="defaultValue">The value to return, as this class cannot be successfully unwrapped.</param>
         /// <returns>Always returns `defaultValue`.</returns>
         public override T UnwrapOr(T defaultValue) => defaultValue;
+
+        /// <summary>
+        /// Map this `Invalid&lt;T, E&gt;` to `Invalid&lt;TMapped, EMapped&gt;` by using the provided functions
+        /// to convert the inner error value.
+        /// </summary>
+        /// <param name="valueMapFunction">The function used to map the inner success value. Unused.</param>
+        /// <param name="errorMapFunction">The function used to map the inner error value.</param>
+        /// <typeparam name="TMapped">The new success type to use.</typeparam>
+        /// <typeparam name="EMapped">The new error type to use.</typeparam>
+        /// <returns>The converted `Invalid&lt;TMapped, EMapped&gt;` value.</returns>
+        public override Result<TMapped, EMapped> Map<TMapped, EMapped>(
+            Func<T, TMapped> valueMapFunction, Func<E, EMapped> errorMapFunction)
+            => new Invalid<TMapped, EMapped>(errorMapFunction(errorValue));
+
+        /// <summary>
+        /// Map this `Invalid&lt;T, E&gt;` to `Invalid&lt;TMapped, E&gt;` by creating a new Invalid instance
+        /// using this one's inner error value.
+        /// </summary>
+        /// <param name="valueMapFunction">The function used to map the inner success value. Unused.</param>
+        /// <typeparam name="TMapped">The new success type to use.</typeparam>
+        /// <returns>The converted `Invalid&lt;TMapped, E&gt;` value.</returns>
+        public override Result<TMapped, E> MapValue<TMapped>(Func<T, TMapped> mapFunction)
+            => new Invalid<TMapped, E>(errorValue);
+
+        /// <summary>
+        /// Map this `Invalid&lt;T, E&gt;` to `Invalid&lt;T, EMapped&gt;` by using the provided functions
+        /// to convert the inner error value.
+        /// </summary>
+        /// <param name="errorMapFunction">The function used to map the inner error value.</param>
+        /// <typeparam name="EMapped">The new error type to use.</typeparam>
+        /// <returns>The converted `Invalid&lt;T, EMapped&gt;` value.</returns>
+        public override Result<T, EMapped> MapError<EMapped>(Func<E, EMapped> mapFunction)
+            => new Invalid<T, EMapped>(mapFunction(errorValue));
 
         /// <summary>
         /// Deconstruct this `Invalid` and retrieve the inner error value.
