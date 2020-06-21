@@ -196,11 +196,11 @@ namespace Vectoray.Rendering
 
         // object[] doesn't work here TODO:
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate void glBufferData(BufferTarget target, int size, float[] data, BufferUsageHint usage);
+        private delegate void glBufferData(BufferTarget target, int size, IntPtr data, BufferUsageHint usage);
         private readonly glBufferData _glBufferData;
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate void glNamedBufferData(uint buffer, int size, object[] data, BufferUsageHint usage);
+        private delegate void glNamedBufferData(uint buffer, int size, IntPtr data, BufferUsageHint usage);
         private readonly glNamedBufferData _glNamedBufferData;
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]

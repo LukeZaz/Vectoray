@@ -28,7 +28,6 @@ namespace Vectoray.Rendering
         #region Variable & property declaration
 
         private IntPtr windowPointer;
-
         public Renderer Renderer { get; private set; }
 
         /// <summary>

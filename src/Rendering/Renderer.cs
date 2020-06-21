@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -62,6 +63,9 @@ namespace Vectoray.Rendering
         /// The version of OpenGL this renderer's inner OpenGL context supports.
         /// </summary>
         public readonly GLVersion contextVersion;
+
+        private Dictionary<BufferTarget, GLBuffer> currentBufferBindings =
+            Enum.GetValues(typeof(BufferTarget)).Cast<BufferTarget>().ToDictionary(x => x, x => (GLBuffer)null);
 
         /// <summary>
         /// Whether or not this renderer's inner OpenGL context is current.
@@ -660,198 +664,6 @@ namespace Vectoray.Rendering
         /// this function will *always* return false.</param>
         /// <returns>Whether or not the OpenGL object was a shader program.</returns>
         public bool IsProgram(uint objectId) => _glIsProgram(objectId);
-
-        #endregion
-
-        #region Buffers
-        // TODO: Probably modify this an all opengl object stuff to use wrapper object types?
-
-        /// <summary>
-        /// Generate identifiers for one or more OpenGL buffer objects and store them in an array.
-        /// </summary>
-        /// <param name="amount">The amount of identifiers to generate.</param>
-        /// <returns>An array containing the generated buffer object identifiers.</returns>
-        public uint[] GenBuffers(uint amount)
-        {
-            uint[] buffers = new uint[amount];
-            _glGenBuffers(amount, buffers);
-            return buffers;
-        }
-
-        /// <summary>
-        /// Generates an identifier for an OpenGL buffer object.
-        /// </summary>
-        /// <returns>The buffer object identifier generated.</returns>
-        public uint GenBuffer() => GenBuffers(1)[0];
-
-        /// <summary>
-        /// Generate identifiers for and then initialize one or more OpenGL buffer objects and store them in
-        /// an array. Cannot be used if this renderer does not support OpenGL 4.5 or higher.
-        /// </summary>
-        /// <param name="amount">The amount of buffer objects to create.</param>
-        /// <returns>A `Some` wrapping an array containing the generated buffer object identifiers, unless
-        /// OpenGL 4.5 or higher is unsupported, in which case a `None` instance is returned instead.</returns>
-        public Opt<uint[]> CreateBuffers(uint amount)
-        {
-            if (contextVersion < GLVersion.GL_4_5)
-            {
-                Debug.LogError("Cannot call Renderer.CreateBuffers when the OpenGL context it uses precedes "
-                    + $"OpenGL 4.5. (current version is {contextVersion.AsString()})");
-                return new None<uint[]>();
-            }
-
-            uint[] buffers = new uint[amount];
-            _glCreateBuffers(amount, buffers);
-            return buffers;
-        }
-
-        /// <summary>
-        /// Generates an identifier for and then initializes an OpenGL buffer object.
-        /// Cannot be used if this renderer does not support OpenGL 4.5 or higher.
-        /// </summary>
-        /// <returns>A `Some` wrapping the generated buffer object identifier, unless
-        /// OpenGL 4.5. or higher is unsupported, in which case a `None` instance is returned instead.</returns>
-        public Opt<uint> CreateBuffer() => CreateBuffers(1).Map(item => item[0]);
-
-        /// <summary>
-        /// Binds a given OpenGL buffer object to one of the various buffer targets.
-        /// </summary>
-        /// <param name="target">The OpenGL buffer target to bind the buffer to.</param>
-        /// <param name="buffer">The OpenGL buffer object to bind.
-        /// A value of zero represents no buffer and will unbind any currently bound without replacing them.</param>
-        public void BindBuffer(BufferTarget target, uint buffer)
-        {
-            // TODO: IsBuffer can't be used as unbound buffers don't qualify for it for whatever reason.
-            // Need a buffer wrapper for safety.
-            _glBindBuffer(target, buffer);
-            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while binding buffer '{buffer}'. "
-                                  + "This should be impossible; perhaps an earlier error went uncaught?");
-        }
-
-        /// <summary>
-        /// Unbinds any buffer bound to the provided OpenGL buffer target.
-        /// </summary>
-        /// <param name="target">The buffer target to unbind any currently bound buffer from.</param>
-        public void UnbindBuffer(BufferTarget target) => BindBuffer(target, 0);
-
-        /// <summary>
-        /// Creates a new data store for the buffer object bound to `target` and fills it with `data`, while also
-        /// providing a usage hint for this data to OpenGL. Old data stores will be deleted in this process.
-        /// </summary>
-        /// <param name="target">The buffer target the buffer in question is bound to.</param>
-        /// <param name="data">The data to use to create the new data store for the buffer.</param>
-        /// <param name="usage">The usage hint to give to OpenGL for optimization purposes.</param>
-        /// <typeparam name="T">
-        /// The [unmanaged] type to use.
-        /// 
-        /// [unmanaged]: https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/unmanaged-types
-        /// </typeparam>
-        public void SetBufferData(BufferTarget target, float[] data, BufferUsageHint usage)
-        {
-            // It might be better to instead convert the data to a series of IntPtrs and pass those,
-            // but really I'm not sure if it matters, and this is far simpler.
-            _glBufferData(target, Marshal.SizeOf<float>() * data.Length, data, usage);
-            GetError().LogIfError(
-                e => $"Encountered OpenGL error `{e}` while attempting to crete a new data store for the buffer object "
-                    + $" bound to buffer target `{target}`. " + e switch
-                    {
-                        ErrorCode.INVALID_OPERATION
-                            => "This can be caused if no buffer is bound to this target, or if the"
-                            + " `GL_BUFFER_IMMUTABLE_STORAGE` flag is enabled for the buffer.",
-                        ErrorCode.OUT_OF_MEMORY
-                            => "This can be caused if OpenGL was unable to create a data store with the specified byte size "
-                            + $"of `{Marshal.SizeOf<float>() * data.Length}` "
-                            + $"(type size of {Marshal.SizeOf<float>()} * array length of {data.Length}).",
-                        _ => "This should be impossible; perhaps an earlier error went uncaught?",
-                    }
-            );
-        }
-
-        /// <summary>
-        /// Creates a new data store for the given buffer object and fills it with `data`, while also
-        /// providing a usage hint for this data to OpenGL. Old data stores will be deleted in this process.
-        /// </summary>
-        /// <param name="buffer">The buffer object to create the data store for.</param>
-        /// <param name="data">The data to use to create the new data store for the buffer.</param>
-        /// <param name="usage">The usage hint to give to OpenGL for optimization purposes.</param>
-        /// <typeparam name="T">
-        /// The [unmanaged] type to use.
-        /// 
-        /// [unmanaged]: https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/unmanaged-types
-        /// </typeparam>
-        public void SetNamedBufferData<T>(uint buffer, T[] data, BufferUsageHint usage)
-            where T : unmanaged
-        {
-            // TODO: Exit if GL context version is < 4.5, as NamedBufferData is 4.5+ only.
-            if (!IsBuffer(buffer))
-            {
-                Debug.LogError(
-                    $"Cannot create a buffer data store for object '{buffer}' as it is not an OpenGL buffer object. "
-                    + "(Did you make sure to bind it first?)");
-                return;
-            }
-
-            _glNamedBufferData(buffer, Marshal.SizeOf<T>() * data.Length, Array.ConvertAll(data, item => (object)item), usage);
-            GetError().LogIfError(
-                e => $"Encountered OpenGL error `{e}` while attempting to create a new data store for the buffer object"
-                    + $" '{buffer}`. " + e switch
-                    {
-                        ErrorCode.INVALID_OPERATION
-                            => "This can be caused if no buffer is bound to this target, or if the"
-                            + " `GL_BUFFER_IMMUTABLE_STORAGE` flag is enabled for the buffer.",
-                        ErrorCode.OUT_OF_MEMORY
-                            => "This can be caused if OpenGL was unable to create a data store with the specified byte size "
-                            + $"of `{Marshal.SizeOf<T>() * data.Length}` "
-                            + $"(type size of {Marshal.SizeOf<T>()} * array length of {data.Length}).",
-                        _ => "This should be impossible; perhaps an earlier error went uncaught?",
-                    }
-            );
-        }
-
-        /// <summary>
-        /// Deletes each OpenGL buffer in a given array of them.
-        /// </summary>
-        /// <param name="buffers">The array of buffers to delete.</param>
-        public void DeleteBuffers(uint[] buffers)
-        {
-            uint[] invalidBuffers = buffers.Where(buffer => !IsBuffer(buffer)).ToArray();
-            if (invalidBuffers.Length > 0)
-            {
-                Debug.LogWarning("Cannot delete some elements of an array of buffers, as some were not valid buffer objects "
-                    + $"(other elements of the array will still be deleted): [" + string.Join(", ", invalidBuffers)
-                    + "] (Did you make sure to create them first?)");
-            }
-
-            // This method silently ignores values that are 0 or not valid buffer objects.
-            _glDeleteBuffers((uint)buffers.Length, buffers);
-            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while deleting an array of buffers. "
-                                  + "This should be impossible; perhaps an earlier error went uncaught?");
-        }
-
-        /// <summary>
-        /// Delete a give OpenGL buffer.
-        /// </summary>
-        /// <param name="buffer">The buffer to delete.</param>
-        public void DeleteBuffer(uint buffer)
-        {
-            if (!IsBuffer(buffer))
-            {
-                Debug.LogError($"Cannot delete buffer object '{buffer}' as it is not a valid OpenGL buffer object.");
-                return;
-            }
-
-            _glDeleteBuffers(1, new[] { buffer });
-            GetError().LogIfError(e => $"Encountered unexpected OpenGL error `{e}` while deleting a buffer object. "
-                                  + "This should be impossible; perhaps an earlier error went uncaught?");
-        }
-
-        /// <summary>
-        /// Checks whether a given OpenGL object is a buffer.
-        /// </summary>
-        /// <param name="objectId">The OpenGL object ID to check. If this is zero,
-        /// this function will *always* return false.</param>
-        /// <returns>Whether or not the OpenGL object was a buffer.</returns>
-        public bool IsBuffer(uint objectId) => _glIsBuffer(objectId);
 
         #endregion
 

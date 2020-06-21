@@ -28,11 +28,11 @@ namespace Vectoray.Rendering.OpenGL
 {
     #region Enum declaration
 
-    // TODO: Mark versions as supported/unsupported by the engine as a whole. Also decide on what to/to not support and why.
-    // TODO: Determine what 'supporting' an OpenGL version would entail.
+    // TODO: Mark versions as supported/unsupported by the engine as a whole. Maybe require 3.3+ by default?
+    // 'Supporting' a version entails providing methods to utilize that version's functionality out-of-the-box.
     // TODO: Features made available via the engine for supported versions should check the active version before running.
     /// <summary>
-    /// Represents various OpenGL versions from 1.0 through 4.6.
+    /// Represents various OpenGL versions from 1.0 through 4.6. Versions below 3.0 are unsupported by default.
     /// 
     /// See the [Khronos OpenGL version history page] for more detail on what each version adds.
     /// 
